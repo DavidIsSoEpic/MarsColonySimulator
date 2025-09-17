@@ -2,7 +2,7 @@ import pygame
 import noise
 import numpy as np
 import random
-import math
+from rover import Rover  # 🚙 import Rover class
 
 pygame.init()
 
@@ -25,41 +25,21 @@ LACUNARITY = 2.0
 X_OFFSET = random.uniform(0, 10000)
 Y_OFFSET = random.uniform(0, 10000)
 
-# ---------------- Rover ---------------- #
-rover_x, rover_y = WIDTH // 2, HEIGHT // 2
-target_x, target_y = rover_x, rover_y
-ROVER_SPEED = 1.5  # slower movement
-
 # ---------------- Helper Functions ---------------- #
 def lerp_color(c1, c2, t):
     return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
 
 def get_biome_color(value):
     if value < 0.35:
-        c1 = (110, 40, 30)
-        c2 = (180, 60, 40)
-        t = value / 0.35
-        return lerp_color(c1, c2, t)
+        return lerp_color((110, 40, 30), (180, 60, 40), value / 0.35)
     elif value < 0.55:
-        c1 = (200, 90, 50)
-        c2 = (230, 130, 70)
-        t = (value - 0.35) / 0.2
-        return lerp_color(c1, c2, t)
+        return lerp_color((200, 90, 50), (230, 130, 70), (value - 0.35) / 0.2)
     elif value < 0.7:
-        c1 = (210, 160, 120)
-        c2 = (235, 190, 150)
-        t = (value - 0.55) / 0.15
-        return lerp_color(c1, c2, t)
+        return lerp_color((210, 160, 120), (235, 190, 150), (value - 0.55) / 0.15)
     elif value < 0.85:
-        c1 = (70, 60, 55)
-        c2 = (130, 120, 115)
-        t = (value - 0.7) / 0.15
-        return lerp_color(c1, c2, t)
+        return lerp_color((70, 60, 55), (130, 120, 115), (value - 0.7) / 0.15)
     else:
-        c1 = (180, 180, 180)
-        c2 = (230, 230, 230)
-        t = (value - 0.85) / 0.15
-        return lerp_color(c1, c2, t)
+        return lerp_color((180, 180, 180), (230, 230, 230), (value - 0.85) / 0.15)
 
 def generate_noise_map():
     noise_map = np.zeros((ROWS, COLS))
@@ -75,8 +55,7 @@ def generate_noise_map():
 
     min_val = np.min(noise_map)
     max_val = np.max(noise_map)
-    noise_map = (noise_map - min_val) / (max_val - min_val + 1e-8)
-    return noise_map
+    return (noise_map - min_val) / (max_val - min_val + 1e-8)
 
 def draw_terrain(noise_map):
     for y in range(ROWS):
@@ -85,34 +64,10 @@ def draw_terrain(noise_map):
             rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
             pygame.draw.rect(screen, color, rect)
 
-def move_rover():
-    global rover_x, rover_y
-    dx = target_x - rover_x
-    dy = target_y - rover_y
-    distance = math.hypot(dx, dy)
-    if distance < ROVER_SPEED:
-        next_x, next_y = target_x, target_y
-    else:
-        next_x = rover_x + ROVER_SPEED * dx / distance
-        next_y = rover_y + ROVER_SPEED * dy / distance
-
-    # Convert next position to tile coordinates
-    tile_x = int(next_x / TILE_SIZE)
-    tile_y = int(next_y / TILE_SIZE)
-
-    # Check boundaries and collision with rocks
-    if 0 <= tile_x < COLS and 0 <= tile_y < ROWS:
-        if noise_map[tile_y][tile_x] < 0.7:  # passable terrain
-            rover_x, rover_y = next_x, next_y
-
-def draw_rover():
-    rover_rect = pygame.Rect(int(rover_x)-5, int(rover_y)-5, 10, 10)
-    pygame.draw.rect(screen, (0, 255, 0), rover_rect)  # green rover
-
 # ---------------- Main Loop ---------------- #
 def main():
-    global target_x, target_y, noise_map
     noise_map = generate_noise_map()
+    rover = Rover(WIDTH // 2, HEIGHT // 2)  # 🚙 initialize rover
     clock = pygame.time.Clock()
     running = True
 
@@ -121,11 +76,11 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                target_x, target_y = event.pos  # click sets new rover target
+                rover.set_target(event.pos)  # 🚙 set target
 
         draw_terrain(noise_map)
-        move_rover()
-        draw_rover()
+        rover.move(noise_map, TILE_SIZE, COLS, ROWS)  # 🚙 move rover
+        rover.draw(screen)  # 🚙 draw rover
 
         pygame.display.flip()
         clock.tick(60)
@@ -137,9 +92,9 @@ if __name__ == "__main__":
 
 
 
-#git init
+
+# git init
 # git add .
 # git add main.py
 # git commit -m (COMMENT)
-# git branch -M main
 # git push -u origin main
