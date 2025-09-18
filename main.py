@@ -112,6 +112,5 @@ if __name__ == "__main__":
 
 # git init
 # git add .
-# git add main.py
 # git commit -m (COMMENT)
 # git push -u origin main
