@@ -40,9 +40,17 @@ class Base:
 
 
     def draw(self, screen, tile_size):
-        self.tile_size = tile_size
+    # --- Draw outline (black border) ---
+        for dy in range(-self.radius-1, self.radius+2):
+            for dx in range(-self.radius-1, self.radius+2):
+                if dx*dx + dy*dy <= (self.radius+1)*(self.radius+1):
+                    rect = pygame.Rect((self.x+dx)*tile_size, (self.y+dy)*tile_size, tile_size, tile_size)
+                    pygame.draw.rect(screen, (0, 0, 0), rect)
+
+    # --- Draw base (light gray fill) ---
         for dy in range(-self.radius, self.radius+1):
             for dx in range(-self.radius, self.radius+1):
                 if dx*dx + dy*dy <= self.radius*self.radius:
                     rect = pygame.Rect((self.x+dx)*tile_size, (self.y+dy)*tile_size, tile_size, tile_size)
                     pygame.draw.rect(screen, self.color, rect)
+
