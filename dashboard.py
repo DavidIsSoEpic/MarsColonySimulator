@@ -10,7 +10,7 @@ class Dashboard:
         self.color = color
         self.font = pygame.font.SysFont("Arial", font_size, bold=True)
 
-        # Initialize game metrics
+        # metrics
         self.population = 100
         self.food = 50
         self.power = 50
@@ -38,13 +38,11 @@ class Dashboard:
 
     def draw_text_with_outline(self, screen, text, x, y, outline_color=(0,0,0)):
         """Draw text with black outline."""
-        # Outline offsets
         for dx in [-1,0,1]:
             for dy in [-1,0,1]:
                 if dx != 0 or dy != 0:
                     outline = self.font.render(text, True, outline_color)
                     screen.blit(outline, (x + dx, y + dy))
-        # Draw main text
         render = self.font.render(text, True, self.color)
         screen.blit(render, (x, y))
 
@@ -54,13 +52,11 @@ class Dashboard:
         y = 10
         line_height = self.font.get_height() + 4
 
-        # Round counter
         self.draw_text_with_outline(screen, f"Round: {self.current_round}/{self.rounds_total}", x, y)
         y += line_height
         self.draw_text_with_outline(screen, "-"*20, x, y)
         y += line_height
 
-        # Metrics
         self.draw_text_with_outline(screen, f"Population: {self.population}", x, y)
         y += line_height
         self.draw_text_with_outline(screen, f"Food: {self.food}", x, y)
@@ -76,5 +72,4 @@ class Dashboard:
         self.draw_text_with_outline(screen, "-"*20, x, y)
         y += line_height
 
-        # Current Event
         self.draw_text_with_outline(screen, f"Current Event: {self.current_event}", x, y)

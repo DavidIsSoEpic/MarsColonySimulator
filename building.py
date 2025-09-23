@@ -15,11 +15,9 @@ class Base:
             x = random.randint(radius + 5, cols - radius - 6)
             y = random.randint(radius + 5, rows - radius - 6)
 
-            # Prevent spawn in top-left area (dashboard UI zone)
             if x * tile_size < 250 and y * tile_size < 200:
                 continue
 
-            # Check all tiles within the base radius
             safe = True
             for dy in range(-radius, radius + 1):
                 for dx in range(-radius, radius + 1):
@@ -29,7 +27,7 @@ class Base:
                         if nx < 0 or nx >= cols or ny < 0 or ny >= rows:
                             safe = False
                             break
-                        if noise_map[ny][nx] >= 0.7:  # mountain threshold
+                        if noise_map[ny][nx] >= 0.7: 
                             safe = False
                             break
                 if not safe:
@@ -38,11 +36,9 @@ class Base:
             if safe:
                 return Base(x, y, radius=radius)
 
-        # fallback (middle of map)
         return Base(cols // 2, rows // 2, radius=radius)
 
     def draw(self, screen, tile_size):
-        # --- Draw outline (black border) ---
         for dy in range(-self.radius-1, self.radius+2):
             for dx in range(-self.radius-1, self.radius+2):
                 if dx*dx + dy*dy <= (self.radius+1)*(self.radius+1):
@@ -54,7 +50,6 @@ class Base:
                     )
                     pygame.draw.rect(screen, (0, 0, 0), rect)
 
-        # --- Draw base (light gray fill) ---
         for dy in range(-self.radius, self.radius+1):
             for dx in range(-self.radius, self.radius+1):
                 if dx*dx + dy*dy <= self.radius*self.radius:

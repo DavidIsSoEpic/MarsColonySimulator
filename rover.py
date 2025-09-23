@@ -1,8 +1,7 @@
-# rover.py
 import pygame
 import math
 
-class Rover:  # <-- Capital R
+class Rover:  
     def __init__(self, x, y, speed=1.5, size=10, color=(0, 255, 0)):
         self.x = x
         self.y = y

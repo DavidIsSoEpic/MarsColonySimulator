@@ -3,17 +3,14 @@ import numpy as np
 import noise
 import random
 
-# ---------------- Noise parameters ---------------- #
 SCALE = 40.0
 OCTAVES = 8
 PERSISTENCE = 0.5
 LACUNARITY = 2.0
 
-# Random offsets to avoid stripes
 X_OFFSET = random.uniform(0, 10000)
 Y_OFFSET = random.uniform(0, 10000)
 
-# ---------------- Helper Functions ---------------- #
 def lerp_color(c1, c2, t):
     """Linearly interpolate between two colors."""
     return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
@@ -43,7 +40,7 @@ def generate_noise_map(rows, cols):
                                       lacunarity=LACUNARITY)
             noise_map[y][x] = noise_val
 
-    # Normalize to 0-1
+
     min_val = np.min(noise_map)
     max_val = np.max(noise_map)
     return (noise_map - min_val) / (max_val - min_val + 1e-8)

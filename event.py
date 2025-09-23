@@ -7,11 +7,11 @@ class EventManager:
         self.width = width
         self.height = height
         self.active_event = None
-        self.timer = random.randint(5, 20)  # seconds until next event
+        self.timer = random.randint(5, 20)
         self.counter = 0
-        self.duration_frames = 120  # frames to display event (~2 sec at 60 FPS)
+        self.duration_frames = 120 
 
-        # Simple event: Dust Storm
+        # DUST STORMMMMMMM
         self.events = [
             {
                 "title": "!! WARNING !!",
@@ -42,7 +42,7 @@ class EventManager:
 
     def draw(self, screen):
         if self.active_event:
-            font = pygame.font.SysFont(None, 40, bold=True)  # simple system font
+            font = pygame.font.SysFont(None, 40, bold=True) 
             all_lines = [line for line in [self.active_event["title"]] + self.active_event["description"] if line]
 
             total_height = len(all_lines) * 50
@@ -50,7 +50,6 @@ class EventManager:
 
             for i, line in enumerate(all_lines):
                 text_surface = font.render(line, True, (255, 0, 0))
-                # Draw black outline
                 for dx in [-2, 0, 2]:
                     for dy in [-2, 0, 2]:
                         if dx != 0 or dy != 0:
