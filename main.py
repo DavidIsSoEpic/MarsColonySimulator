@@ -1,11 +1,12 @@
 import pygame
 from rover import Rover
+from drone import Drone
 from terrain import generate_noise_map, draw_terrain
 from dashboard import Dashboard
 from event import EventManager
 from building import Base
 from menu import Menu
-from resources import ResourceDeposit  # <-- resource system
+from resources import ResourceDeposit
 
 pygame.font.init()
 pygame.init()
@@ -28,8 +29,11 @@ def game_loop():
     # Spawn base on safe terrain
     base = Base.spawn(noise_map, COLS, ROWS, TILE_SIZE)
 
-    # Initialize rover at base
+    # Initialize rover and drone
     rover = Rover(base.x * TILE_SIZE, base.y * TILE_SIZE)
+    drone = Drone(base.x * TILE_SIZE + 50, base.y * TILE_SIZE + 50)  # start slightly offset
+
+    selected_unit = None  # currently selected unit
 
     # Initialize dashboard with starting metrics
     dashboard = Dashboard(rounds_total=30)
@@ -61,10 +65,24 @@ def game_loop():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                rover.set_target(event.pos)
-                dashboard.next_round()
+                click_pos = event.pos
+                clicked_on_unit = False
 
-                # Resource consumption per turn
+                # Check if we clicked on the rover
+                if rover.is_clicked(click_pos):
+                    selected_unit = rover
+                    clicked_on_unit = True
+                # Check if we clicked on the drone
+                elif drone.is_clicked(click_pos):
+                    selected_unit = drone
+                    clicked_on_unit = True
+
+                # Only move the selected unit if click was not on a unit
+                if not clicked_on_unit and selected_unit:
+                    selected_unit.set_target(click_pos)
+
+                # Update resources / dashboard per turn
+                dashboard.next_round()
                 new_food = max(dashboard.food - dashboard.population * 2, 0)
                 new_water = max(dashboard.water - dashboard.population * 1, 0)
                 dashboard.update_metrics(food=new_food, water=new_water)
@@ -76,22 +94,27 @@ def game_loop():
         screen.fill((0, 0, 0))
         draw_terrain(screen, noise_map, TILE_SIZE)
         base.draw(screen, TILE_SIZE)
-        rover.move(noise_map, TILE_SIZE, COLS, ROWS)
-        rover.draw(screen)
 
-        # Draw resources **behind the dashboard**
+        # Draw resources behind dashboard
         for res in resources:
             for x, y in res.positions:
                 rect = pygame.Rect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE)
                 pygame.draw.rect(screen, res.color, rect)
 
-        # Draw dashboard and events last
+        # Move and draw units
+        rover.move(noise_map, TILE_SIZE, COLS, ROWS)
+        rover.draw(screen)
+
+        drone.move(noise_map, TILE_SIZE, COLS, ROWS)
+        drone.draw(screen)
+
+        # Draw dashboard on top
         dashboard.draw(screen)
+
+        # Draw events on top
         event_manager.draw(screen)
 
         pygame.display.flip()
-
-    pygame.quit()
 
 
 def main():
@@ -133,6 +156,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 

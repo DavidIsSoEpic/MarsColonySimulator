@@ -2,7 +2,7 @@ import pygame
 import math
 
 class Rover:  
-    def __init__(self, x, y, speed=1.5, size=10, color=(0, 255, 0)):
+    def __init__(self, x, y, speed=1.5, size=20, color=(0, 255, 0)):
         self.x = x
         self.y = y
         self.target_x = x
@@ -31,6 +31,12 @@ class Rover:
                 self.x, self.y = next_x, next_y
 
     def draw(self, screen):
-        rover_rect = pygame.Rect(int(self.x)-self.size//2, int(self.y)-self.size//2,
-                                 self.size, self.size)
-        pygame.draw.rect(screen, self.color, rover_rect)
+        rect = pygame.Rect(int(self.x - self.size//2), int(self.y - self.size//2),
+                           self.size, self.size)
+        pygame.draw.rect(screen, self.color, rect)
+
+    def is_clicked(self, pos):
+        # Center the rect around the rover
+        rect = pygame.Rect(int(self.x - self.size//2), int(self.y - self.size//2),
+                           self.size, self.size)
+        return rect.collidepoint(pos)
