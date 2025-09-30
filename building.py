@@ -15,6 +15,7 @@ class Base:
             x = random.randint(radius + 5, cols - radius - 6)
             y = random.randint(radius + 5, rows - radius - 6)
 
+            # Avoid UI area
             if x * tile_size < 250 and y * tile_size < 200:
                 continue
 
@@ -27,7 +28,7 @@ class Base:
                         if nx < 0 or nx >= cols or ny < 0 or ny >= rows:
                             safe = False
                             break
-                        if noise_map[ny][nx] >= 0.7: 
+                        if noise_map[ny][nx] >= 0.7:  # too steep/mountain
                             safe = False
                             break
                 if not safe:
@@ -36,12 +37,14 @@ class Base:
             if safe:
                 return Base(x, y, radius=radius)
 
+        # fallback
         return Base(cols // 2, rows // 2, radius=radius)
 
     def draw(self, screen, tile_size):
+        # Draw base outline (border)
         for dy in range(-self.radius-1, self.radius+2):
             for dx in range(-self.radius-1, self.radius+2):
-                if dx*dx + dy*dy <= (self.radius+1)*(self.radius+1):
+                if dx*dx + dy*dy <= (self.radius+1)**2:
                     rect = pygame.Rect(
                         (self.x+dx) * tile_size,
                         (self.y+dy) * tile_size,
@@ -50,9 +53,10 @@ class Base:
                     )
                     pygame.draw.rect(screen, (0, 0, 0), rect)
 
+        # Draw main base
         for dy in range(-self.radius, self.radius+1):
             for dx in range(-self.radius, self.radius+1):
-                if dx*dx + dy*dy <= self.radius*self.radius:
+                if dx*dx + dy*dy <= self.radius**2:
                     rect = pygame.Rect(
                         (self.x+dx) * tile_size,
                         (self.y+dy) * tile_size,
@@ -60,3 +64,14 @@ class Base:
                         tile_size
                     )
                     pygame.draw.rect(screen, self.color, rect)
+
+    def is_clicked(self, mouse_pos, tile_size=10):
+        """Return True if the mouse clicks inside the base circle."""
+        mx, my = mouse_pos
+        rect = pygame.Rect(
+            (self.x - self.radius) * tile_size,
+            (self.y - self.radius) * tile_size,
+            self.radius * 2 * tile_size,
+            self.radius * 2 * tile_size
+        )
+        return rect.collidepoint(mx, my)
