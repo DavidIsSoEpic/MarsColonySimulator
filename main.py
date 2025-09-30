@@ -1,4 +1,5 @@
 import pygame
+from building_manager import BuildingManager
 from rover import Rover
 from drone import Drone
 from terrain import generate_noise_map, draw_terrain
@@ -27,6 +28,9 @@ def game_loop():
     # Generate terrain
     noise_map = generate_noise_map(ROWS, COLS)
 
+    # Link building manager with noise map
+    building_manager = BuildingManager(noise_map)
+
     # Spawn base on safe terrain
     base = Base.spawn(noise_map, COLS, ROWS, TILE_SIZE)
 
@@ -51,7 +55,7 @@ def game_loop():
         food=50,
         power=20,
         water=30,
-        metals=3,
+        metals=10,  # start with more to support building placement
         soldiers=0,
         current_event=""
     )
@@ -94,12 +98,26 @@ def game_loop():
                 click_pos = event.pos
                 clicked_on_unit = False
 
-                # Right-click opens rover inventory
-                if event.button == 3 and rover.is_clicked(click_pos):
-                    show_rover_inventory = not show_rover_inventory
+                # Right-click → either open rover inventory or place building
+                if event.button == 3:
+                    if rover.is_clicked(click_pos):
+                        show_rover_inventory = not show_rover_inventory
+                    else:
+                        # Place building
+                        mx, my = click_pos
+                        size = 2  # building size
+                        gx = (mx // TILE_SIZE) // size * size
+                        gy = (my // TILE_SIZE) // size * size
+                        new_metals = max(dashboard.metals - dashboard.population * 0.1, 0)
+                        dashboard.update_metrics(metals=new_metals)
 
-                # Left-click selects unit
-                if event.button == 1:
+                        if building_manager.add_building(gx, gy, size=size, color=(0, 200, 0)):
+                            print(f"Placed building at {gx},{gy}")
+                        else:
+                            print("Invalid spot")
+
+                # Left-click → select/move units
+                elif event.button == 1:
                     if rover.is_clicked(click_pos):
                         selected_unit = rover
                         clicked_on_unit = True
@@ -123,11 +141,11 @@ def game_loop():
                         else:
                             selected_unit.set_target(click_pos)
 
-                # Update dashboard per turn (food/water)
-                dashboard.next_round()
-                new_food = max(dashboard.food - dashboard.population * 2, 0)
-                new_water = max(dashboard.water - dashboard.population * 1, 0)
-                dashboard.update_metrics(food=new_food, water=new_water)
+                    # Update dashboard per turn (food/water)
+                    dashboard.next_round()
+                    new_food = max(dashboard.food - dashboard.population * 2, 0)
+                    new_water = max(dashboard.water - dashboard.population * 1, 0)
+                    dashboard.update_metrics(food=new_food, water=new_water)
 
         # Update events
         event_manager.update(dt)
@@ -140,24 +158,27 @@ def game_loop():
         draw_terrain(screen, noise_map, TILE_SIZE)
         base.draw(screen, TILE_SIZE)
 
-        # Draw resources behind units
+        # Draw resources
         for res in resources:
             for x, y in res.positions:
-                rect = pygame.Rect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE)
+                rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
                 pygame.draw.rect(screen, res.color, rect)
 
-        # Move and draw units
+        # Move/draw units
         rover.move(noise_map, TILE_SIZE, COLS, ROWS)
         rover.draw(screen)
 
         drone.move(noise_map, TILE_SIZE, COLS, ROWS)
         drone.draw(screen)
 
-        # Draw RoverInventory on top if active
+        # Draw buildings
+        building_manager.draw(screen, TILE_SIZE)
+
+        # Draw RoverInventory
         if show_rover_inventory:
             rover_inventory.draw(screen, resources)
 
-        # Draw dashboard and events on top
+        # Draw dashboard and events
         dashboard.draw(screen)
         event_manager.draw(screen)
 
@@ -169,6 +190,8 @@ def game_loop():
             message_timer -= dt
 
         pygame.display.flip()
+
+    pygame.quit()
 
 
 def main():
@@ -215,3 +238,4 @@ if __name__ == "__main__":
 # git add .
 # git commit -m (COMMENT)
 # git push -u origin main
+
