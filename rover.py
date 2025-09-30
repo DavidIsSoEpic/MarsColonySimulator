@@ -10,6 +10,7 @@ class Rover:
         self.speed = speed
         self.size = size
         self.color = color
+        self.storage = 0
 
     def set_target(self, pos):
         self.target_x, self.target_y = pos
