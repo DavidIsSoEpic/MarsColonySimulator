@@ -16,7 +16,9 @@ class Base:
             y = random.randint(radius + 5, rows - radius - 6)
 
             # Avoid UI area
-            if x * tile_size < 250 and y * tile_size < 200:
+            ui_block_width = 250
+            ui_block_height = 200
+            if (x - radius) * tile_size < ui_block_width or (y - radius) * tile_size < ui_block_height:
                 continue
 
             safe = True
