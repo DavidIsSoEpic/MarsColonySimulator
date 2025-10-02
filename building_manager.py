@@ -1,62 +1,79 @@
 import pygame
 
-class Building:
-    def __init__(self, x, y, size, color=(100, 200, 100)):
-        self.x = x  # grid position
-        self.y = y
-        self.size = size  # size in tiles (e.g., 2 = 2x2 building)
-        self.color = color
-
-    def draw(self, screen, tile_size):
-        # Rectangle covering the building area
-        rect = pygame.Rect(
-            self.x * tile_size,
-            self.y * tile_size,
-            self.size * tile_size,
-            self.size * tile_size
-        )
-
-        # Fill the building
-        pygame.draw.rect(screen, self.color, rect)
-
-        # Add an outline so it stands out
-        pygame.draw.rect(screen, (0, 0, 0), rect, 2)
-
-        # Debug: confirm this method runs
-        # (you can remove later when it works)
-        # print(f"Drawing building at grid {self.x},{self.y}")
-        
-
 class BuildingManager:
-    def __init__(self, noise_map, mountain_threshold=0.7):
+    def __init__(self, noise_map):
         self.noise_map = noise_map
-        self.mountain_threshold = mountain_threshold
         self.buildings = []
+        self.resources = []
+        self.base = None
 
-    def can_place(self, x, y, size):
-        rows, cols = self.noise_map.shape
+    def set_resources(self, resources):
+        self.resources = resources
 
+    def set_base(self, base):
+        self.base = base
+
+    def can_place(self, gx, gy, size=3):
         # Bounds check
-        if x < 0 or y < 0 or x + size > cols or y + size > rows:
+        if gx < 0 or gy < 0 or gx + size > len(self.noise_map[0]) or gy + size > len(self.noise_map):
             return False
 
-        # Avoid overlaps & mountains
-        for by in range(y, y + size):
-            for bx in range(x, x + size):
-                if self.noise_map[by][bx] >= self.mountain_threshold:
+        # Cannot place on mountains
+        for x in range(gx, gx + size):
+            for y in range(gy, gy + size):
+                if self.noise_map[y][x] > 0.6:  # mountain threshold
                     return False
-                for b in self.buildings:
-                    if (bx >= b.x and bx < b.x + b.size and
-                        by >= b.y and by < b.y + b.size):
-                        return False
+
+        # Cannot overlap resources
+        for res in self.resources:
+            for (rx, ry) in res.positions:
+                if gx <= rx < gx + size and gy <= ry < gy + size:
+                    return False
+
+        # Cannot overlap base (including its outline)
+        if self.base:
+            base_rect = pygame.Rect(
+                (self.base.x - self.base.radius - 1), 
+                (self.base.y - self.base.radius - 1),
+                (self.base.radius * 2 + 2),
+                (self.base.radius * 2 + 2)
+            )
+            new_building_rect = pygame.Rect(gx, gy, size, size)
+            if base_rect.colliderect(new_building_rect):
+                return False
+
+        # Cannot overlap other buildings
+        for bx, by, bsize, _ in self.buildings:
+            if (gx < bx + bsize and gx + size > bx and
+                gy < by + bsize and gy + size > by):
+                return False
+
         return True
 
-    def add_building(self, x, y, size, color=(100, 200, 100)):
-        if self.can_place(x, y, size):
-            self.buildings.append(Building(x, y, size, color))
+    def add_building(self, gx, gy, size=3, color=(0, 200, 0)):
+        if self.can_place(gx, gy, size):
+            self.buildings.append((gx, gy, size, color))
             return True
         return False
 
     def draw(self, screen, tile_size):
-        for b in self.buildings:
-            b.draw(screen, tile_size)
+        for gx, gy, size, color in self.buildings:
+            # Draw each tile of the building
+            for dy in range(size):
+                for dx in range(size):
+                    rect = pygame.Rect(
+                        (gx + dx) * tile_size,
+                        (gy + dy) * tile_size,
+                        tile_size,
+                        tile_size
+                    )
+                    pygame.draw.rect(screen, color, rect)
+
+            # Draw exterior outline like the base
+            outline_rect = pygame.Rect(
+                gx * tile_size,
+                gy * tile_size,
+                size * tile_size,
+                size * tile_size
+            )
+            pygame.draw.rect(screen, (0, 0, 0), outline_rect, 2)
