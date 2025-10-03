@@ -15,10 +15,9 @@ class BaseInventory:
         self.buildings = [
             {"name": "Housing", "cost": {"metals": 5}, "build_time": 1, "size": (4, 4)},
             {"name": "Farm", "cost": {"metals": 3}, "build_time": 2, "size": (2, 5)},
-            {"name": "Power Generator", "cost": {"metals": 4}, "build_time": 3, "size": (2, 2)},
-            {"name": "Factory", "cost": {"metals": 6}, "build_time": 4, "size": (4, 4)},
-            {"name": "Vehicle Bay", "cost": {"metals": 5}, "build_time": 3, "size": (4, 4)},
-            {"name": "Home Base", "cost": {"metals": 10}, "build_time": 5, "size": (5, 5)},
+            {"name": "Power Generator", "cost": {"metals": 4}, "build_time": 3, "size": (3, 2)},
+            {"name": "Factory", "cost": {"metals": 6}, "build_time": 4, "size": (5, 5)},
+            {"name": "Vehicle Bay", "cost": {"metals": 5}, "build_time": 3, "size": (5, 3)},
         ]
 
     def handle_event(self, event):

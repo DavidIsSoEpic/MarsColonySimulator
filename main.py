@@ -73,7 +73,8 @@ def game_loop():
     message_timer = 0
 
     placing_building = None  # Tracks which building is currently being placed
-    ignore_next_click = False  # Flag to prevent instant placement after selecting building
+    ignore_next_click = False
+    rotate_pressed_last_frame = False  # For rotation key tracking
 
     # Initialize dashboard
     dashboard = Dashboard(rounds_total=30)
@@ -97,6 +98,17 @@ def game_loop():
     while running:
         dt = clock.tick(60) / 1000
         mouse_pos = pygame.mouse.get_pos()
+        keys = pygame.key.get_pressed()
+
+        # ---------------- Handle rotation ---------------- #
+        if placing_building:
+            if keys[pygame.K_r] and not rotate_pressed_last_frame:
+                b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
+                current_size = b_info.get("size", (4, 4))
+                b_info["size"] = (current_size[1], current_size[0])  # Rotate 90°
+                rotate_pressed_last_frame = True
+            elif not keys[pygame.K_r]:
+                rotate_pressed_last_frame = False
 
         clicked_ui = False
         for event in pygame.event.get():
@@ -116,10 +128,9 @@ def game_loop():
                 if action == "close":
                     show_base_inventory = False
                 elif action and action.startswith("build_"):
-                    # Exit menu and start placing building
                     placing_building = action.replace("build_", "")
                     show_base_inventory = False
-                    ignore_next_click = True  # Ignore this frame's leftover click
+                    ignore_next_click = True
                 clicked_ui = True
 
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -143,11 +154,9 @@ def game_loop():
                     gy = click_pos[1] // TILE_SIZE
 
                     if placing_building:
-                        # Get building info and size
                         b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
                         b_size = b_info.get("size", (4, 4))
-
-                        cost = 1  # Placeholder; replace with b_info["cost"]["metals"] if desired
+                        cost = 1  # Placeholder
                         if dashboard.metals >= cost:
                             if building_manager.add_building(gx, gy, size=b_size, color=(200, 200, 200)):
                                 dashboard.update_metrics(metals=dashboard.metals - cost)
@@ -215,13 +224,13 @@ def game_loop():
         # 4. Draw base
         base.draw(screen, TILE_SIZE)
 
-        # 5. Move and draw units (rovers/drones) ABOVE buildings
+        # 5. Move and draw units
         rover.move(noise_map, TILE_SIZE, COLS, ROWS)
         rover.draw(screen)
         drone.move(noise_map, TILE_SIZE, COLS, ROWS)
         drone.draw(screen)
 
-        # 6. Draw building preview if in placement mode
+        # 6. Draw building preview if placing
         if placing_building:
             gx = mouse_pos[0] // TILE_SIZE
             gy = mouse_pos[1] // TILE_SIZE
@@ -235,7 +244,7 @@ def game_loop():
             )
             pygame.draw.rect(screen, color, preview_rect, 2)
 
-        # 7. Draw inventories and UI on top
+        # 7. Draw inventories and UI
         if show_rover_inventory:
             rover_inventory.draw(screen, resources)
         if show_base_inventory:
