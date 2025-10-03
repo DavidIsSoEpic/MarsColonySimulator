@@ -9,6 +9,7 @@ from building import Base
 from menu import Menu
 from resources import ResourceDeposit
 from rover_inventory import RoverInventory
+from drone_inventory import DroneInventory  # <-- import DroneInventory
 from base_inventory import BaseInventory
 
 pygame.font.init()
@@ -61,20 +62,26 @@ def game_loop():
     rover.storage = 0
     rover.mining_active = False
     rover.awaiting_move_confirmation = False
+
     drone = Drone(base.x * TILE_SIZE + 50, base.y * TILE_SIZE + 50)
+    drone.storage = 0
+    drone.resources_held = {}
 
     selected_unit = None
     show_rover_inventory = False
+    show_drone_inventory = False
     rover_inventory = RoverInventory(rover)
+    drone_inventory = DroneInventory(drone)  # <-- initialize drone inventory
+
     show_base_inventory = False
     base_inventory = BaseInventory(base, None)  # Dashboard linked later
 
     bottom_right_message = ""
     message_timer = 0
 
-    placing_building = None  # Tracks which building is currently being placed
+    placing_building = None
     ignore_next_click = False
-    rotate_pressed_last_frame = False  # For rotation key tracking
+    rotate_pressed_last_frame = False
 
     # Initialize dashboard
     dashboard = Dashboard(rounds_total=30)
@@ -87,7 +94,7 @@ def game_loop():
         soldiers=0,
         current_event=""
     )
-    base_inventory.dashboard = dashboard  # Link dashboard now
+    base_inventory.dashboard = dashboard
 
     # Event Manager
     event_manager = EventManager(dashboard, WIDTH, HEIGHT)
@@ -105,7 +112,7 @@ def game_loop():
             if keys[pygame.K_r] and not rotate_pressed_last_frame:
                 b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
                 current_size = b_info.get("size", (4, 4))
-                b_info["size"] = (current_size[1], current_size[0])  # Rotate 90°
+                b_info["size"] = (current_size[1], current_size[0])
                 rotate_pressed_last_frame = True
             elif not keys[pygame.K_r]:
                 rotate_pressed_last_frame = False
@@ -120,6 +127,13 @@ def game_loop():
                 action = rover_inventory.handle_event(event, resources)
                 if action == "close":
                     show_rover_inventory = False
+                clicked_ui = True
+
+            # ---------------- Drone Inventory ---------------- #
+            if show_drone_inventory:
+                action = drone_inventory.handle_event(event, resources)
+                if action == "close":
+                    show_drone_inventory = False
                 clicked_ui = True
 
             # ---------------- Base Inventory ---------------- #
@@ -141,6 +155,8 @@ def game_loop():
                 if event.button == 3:
                     if rover.is_clicked(click_pos):
                         show_rover_inventory = not show_rover_inventory
+                    elif drone.is_clicked(click_pos):
+                        show_drone_inventory = not show_drone_inventory
                     elif base.is_clicked(click_pos):
                         show_base_inventory = not show_base_inventory
 
@@ -156,7 +172,7 @@ def game_loop():
                     if placing_building:
                         b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
                         b_size = b_info.get("size", (4, 4))
-                        cost = 1  # Placeholder
+                        cost = 1
                         if dashboard.metals >= cost:
                             if building_manager.add_building(gx, gy, size=b_size, color=(200, 200, 200)):
                                 dashboard.update_metrics(metals=dashboard.metals - cost)
@@ -202,6 +218,7 @@ def game_loop():
 
         # Update mining and inventory
         rover_inventory.update(resources)
+        drone_inventory.update(resources)  # <-- update drone inventory
 
         # Update base inventory
         base_inventory.update()
@@ -209,28 +226,23 @@ def game_loop():
         # ---------------- Draw Everything ---------------- #
         screen.fill((0, 0, 0))
 
-        # 1. Draw terrain
         draw_terrain(screen, noise_map, TILE_SIZE)
 
-        # 2. Draw resources
+        # Draw resources
         for res in resources:
             for x, y in res.positions:
                 rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
                 pygame.draw.rect(screen, res.color, rect)
 
-        # 3. Draw buildings
         building_manager.draw(screen, TILE_SIZE)
-
-        # 4. Draw base
         base.draw(screen, TILE_SIZE)
 
-        # 5. Move and draw units
         rover.move(noise_map, TILE_SIZE, COLS, ROWS)
         rover.draw(screen)
         drone.move(noise_map, TILE_SIZE, COLS, ROWS)
         drone.draw(screen)
 
-        # 6. Draw building preview if placing
+        # Draw building preview
         if placing_building:
             gx = mouse_pos[0] // TILE_SIZE
             gy = mouse_pos[1] // TILE_SIZE
@@ -244,16 +256,18 @@ def game_loop():
             )
             pygame.draw.rect(screen, color, preview_rect, 2)
 
-        # 7. Draw inventories and UI
+        # Draw inventories and UI
         if show_rover_inventory:
             rover_inventory.draw(screen, resources)
+        if show_drone_inventory:
+            drone_inventory.draw(screen, resources)
         if show_base_inventory:
             base_inventory.draw(screen)
 
         dashboard.draw(screen)
         event_manager.draw(screen)
 
-        # 8. Draw bottom-right messages
+        # Bottom-right messages
         if bottom_right_message and message_timer > 0:
             msg_font = pygame.font.SysFont("Arial", 20, bold=True)
             msg_text = msg_font.render(bottom_right_message, True, (255, 255, 255))
@@ -296,7 +310,6 @@ def main():
 
         pygame.display.flip()
 
-    # Start Game
     game_loop()
 
 
@@ -304,9 +317,8 @@ if __name__ == "__main__":
     main()
 
 
-
 # ---------------- Git Commands ---------------- #
 # git init
 # git add .
-# git commit -m "Initial commit or your comment"
+# git commit -m "Integrated DroneInventory"
 # git push -u origin main
