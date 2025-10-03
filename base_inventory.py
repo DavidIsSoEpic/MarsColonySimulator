@@ -13,12 +13,12 @@ class BaseInventory:
         self.error_message = ""
         self.build_queue = []  # list of tuples (building_name, finish_time, build_time)
         self.buildings = [
-            {"name": "Housing", "cost": {"metals": 5}, "build_time": 1},
-            {"name": "Farm", "cost": {"metals": 3}, "build_time": 2},
-            {"name": "Power Generator", "cost": {"metals": 4}, "build_time": 3},
-            {"name": "Factory", "cost": {"metals": 6}, "build_time": 4},
-            {"name": "Vehicle Bay", "cost": {"metals": 5}, "build_time": 3},
-            {"name": "Home Base", "cost": {"metals": 10}, "build_time": 5},
+            {"name": "Housing", "cost": {"metals": 5}, "build_time": 1, "size": (4, 4)},
+            {"name": "Farm", "cost": {"metals": 3}, "build_time": 2, "size": (2, 5)},
+            {"name": "Power Generator", "cost": {"metals": 4}, "build_time": 3, "size": (2, 2)},
+            {"name": "Factory", "cost": {"metals": 6}, "build_time": 4, "size": (4, 4)},
+            {"name": "Vehicle Bay", "cost": {"metals": 5}, "build_time": 3, "size": (4, 4)},
+            {"name": "Home Base", "cost": {"metals": 10}, "build_time": 5, "size": (5, 5)},
         ]
 
     def handle_event(self, event):
@@ -83,8 +83,9 @@ class BaseInventory:
             pygame.draw.rect(screen, (50, 50, 50), btn_rect)
 
             cost_str = ', '.join(f"{amt} {res.capitalize()}" for res, amt in b["cost"].items())
+            w, h = b["size"]
             time_str = "INSTANT" if b["build_time"] <= 1 else f"{b['build_time']} Rounds"
-            name_text = self.font.render(f"{b['name']} - {cost_str} - Time: {time_str}", True, (255, 255, 255))
+            name_text = self.font.render(f"{b['name']} ({w}x{h}) - {cost_str} - Time: {time_str}", True, (255, 255, 255))
             screen.blit(name_text, (btn_rect.x + 10, btn_rect.y + 8))
 
         # Optional: Draw build queue and error messages

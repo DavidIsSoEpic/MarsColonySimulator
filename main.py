@@ -72,8 +72,6 @@ def game_loop():
     bottom_right_message = ""
     message_timer = 0
 
-    # Default building size
-    building_size = 4
     placing_building = None  # Tracks which building is currently being placed
     ignore_next_click = False  # Flag to prevent instant placement after selecting building
 
@@ -138,7 +136,6 @@ def game_loop():
                 # ---------------- Left-click ---------------- #
                 elif event.button == 1:
                     if ignore_next_click:
-                        # Ignore this leftover click from opening the building menu
                         ignore_next_click = False
                         continue
 
@@ -146,13 +143,17 @@ def game_loop():
                     gy = click_pos[1] // TILE_SIZE
 
                     if placing_building:
-                        cost = 1  # 1 metal per building
+                        # Get building info and size
+                        b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
+                        b_size = b_info.get("size", (4, 4))
+
+                        cost = 1  # Placeholder; replace with b_info["cost"]["metals"] if desired
                         if dashboard.metals >= cost:
-                            if building_manager.add_building(gx, gy, size=building_size, color=(200, 200, 200)):
+                            if building_manager.add_building(gx, gy, size=b_size, color=(200, 200, 200)):
                                 dashboard.update_metrics(metals=dashboard.metals - cost)
                                 bottom_right_message = f"Placed {placing_building} at {gx},{gy}"
                                 message_timer = 2
-                                placing_building = None  # Exit placement mode
+                                placing_building = None
                             else:
                                 bottom_right_message = "Invalid building spot"
                                 message_timer = 2
@@ -211,7 +212,7 @@ def game_loop():
         # 3. Draw buildings
         building_manager.draw(screen, TILE_SIZE)
 
-        # 4. Draw base (outline + pixels)
+        # 4. Draw base
         base.draw(screen, TILE_SIZE)
 
         # 5. Move and draw units (rovers/drones) ABOVE buildings
@@ -220,15 +221,17 @@ def game_loop():
         drone.move(noise_map, TILE_SIZE, COLS, ROWS)
         drone.draw(screen)
 
-        # 6. Draw building preview on top if in placement mode
+        # 6. Draw building preview if in placement mode
         if placing_building:
             gx = mouse_pos[0] // TILE_SIZE
             gy = mouse_pos[1] // TILE_SIZE
-            valid = building_manager.can_place(gx, gy, building_size)
+            b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
+            b_size = b_info.get("size", (4, 4))
+            valid = building_manager.can_place(gx, gy, b_size)
             color = (0, 200, 0) if valid else (200, 0, 0)
             preview_rect = pygame.Rect(
                 gx * TILE_SIZE, gy * TILE_SIZE,
-                building_size * TILE_SIZE, building_size * TILE_SIZE
+                b_size[0] * TILE_SIZE, b_size[1] * TILE_SIZE
             )
             pygame.draw.rect(screen, color, preview_rect, 2)
 
@@ -290,6 +293,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 # ---------------- Git Commands ---------------- #
