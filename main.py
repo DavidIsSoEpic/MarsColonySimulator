@@ -9,8 +9,9 @@ from building import Base
 from menu import Menu
 from resources import ResourceDeposit
 from rover_inventory import RoverInventory
-from drone_inventory import DroneInventory  # <-- import DroneInventory
+from drone_inventory import DroneInventory
 from base_inventory import BaseInventory
+from vehicle_bay_inventory import VehicleBayInventory
 
 pygame.font.init()
 pygame.init()
@@ -24,19 +25,11 @@ ROWS = HEIGHT // TILE_SIZE
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Mars Colony Simulator - Top-Down Mars Terrain")
 
-
-# ---------------- Main Loop ---------------- #
 def game_loop():
-    # Generate terrain
     noise_map = generate_noise_map(ROWS, COLS)
-
-    # Spawn base on safe terrain
     base = Base.spawn(noise_map, COLS, ROWS, TILE_SIZE)
-
-    # Initialize building manager
     building_manager = BuildingManager(noise_map)
 
-    # Initialize resources
     all_resources = ResourceDeposit.spawn_resources(noise_map, COLS, ROWS, TILE_SIZE)
     resources = []
     base_rect = pygame.Rect(
@@ -53,28 +46,27 @@ def game_loop():
             res.positions = filtered_positions
             resources.append(res)
 
-    # Pass resources and base to building manager
     building_manager.set_resources(resources)
     building_manager.set_base(base)
 
-    # Initialize rover and drone
     rover = Rover(base.x * TILE_SIZE, base.y * TILE_SIZE)
     rover.storage = 0
     rover.mining_active = False
     rover.awaiting_move_confirmation = False
 
     drone = Drone(base.x * TILE_SIZE + 50, base.y * TILE_SIZE + 50)
-    drone.storage = 0
-    drone.resources_held = {}
 
     selected_unit = None
     show_rover_inventory = False
-    show_drone_inventory = False
     rover_inventory = RoverInventory(rover)
-    drone_inventory = DroneInventory(drone)  # <-- initialize drone inventory
+    show_drone_inventory = False
+    drone_inventory = DroneInventory(drone)
 
     show_base_inventory = False
-    base_inventory = BaseInventory(base, None)  # Dashboard linked later
+    base_inventory = BaseInventory(base, None)
+
+    show_vehicle_inventory = False
+    vehicle_inventory = None
 
     bottom_right_message = ""
     message_timer = 0
@@ -83,20 +75,10 @@ def game_loop():
     ignore_next_click = False
     rotate_pressed_last_frame = False
 
-    # Initialize dashboard
     dashboard = Dashboard(rounds_total=30)
-    dashboard.update_metrics(
-        population=5,
-        food=50,
-        power=20,
-        water=30,
-        metals=20,
-        soldiers=0,
-        current_event=""
-    )
+    dashboard.update_metrics(population=5, food=50, power=20, water=30, metals=20, soldiers=0, current_event="")
     base_inventory.dashboard = dashboard
 
-    # Event Manager
     event_manager = EventManager(dashboard, WIDTH, HEIGHT)
 
     clock = pygame.time.Clock()
@@ -107,7 +89,6 @@ def game_loop():
         mouse_pos = pygame.mouse.get_pos()
         keys = pygame.key.get_pressed()
 
-        # ---------------- Handle rotation ---------------- #
         if placing_building:
             if keys[pygame.K_r] and not rotate_pressed_last_frame:
                 b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
@@ -122,21 +103,19 @@ def game_loop():
             if event.type == pygame.QUIT:
                 running = False
 
-            # ---------------- Rover Inventory ---------------- #
+            # ---------------- Inventories ---------------- #
             if show_rover_inventory:
                 action = rover_inventory.handle_event(event, resources)
                 if action == "close":
                     show_rover_inventory = False
                 clicked_ui = True
 
-            # ---------------- Drone Inventory ---------------- #
             if show_drone_inventory:
                 action = drone_inventory.handle_event(event, resources)
                 if action == "close":
                     show_drone_inventory = False
                 clicked_ui = True
 
-            # ---------------- Base Inventory ---------------- #
             if show_base_inventory:
                 action = base_inventory.handle_event(event)
                 if action == "close":
@@ -147,21 +126,37 @@ def game_loop():
                     ignore_next_click = True
                 clicked_ui = True
 
+            if show_vehicle_inventory and vehicle_inventory:
+                action = vehicle_inventory.handle_event(event)
+                if action == "close":
+                    show_vehicle_inventory = False
+                clicked_ui = True
+
+            # ---------------- Mouse Clicks ---------------- #
             if event.type == pygame.MOUSEBUTTONDOWN:
                 click_pos = event.pos
                 clicked_on_unit = False
 
-                # ---------------- Right-click ---------------- #
-                if event.button == 3:
+                if event.button == 3:  # Right-click
                     if rover.is_clicked(click_pos):
                         show_rover_inventory = not show_rover_inventory
                     elif drone.is_clicked(click_pos):
                         show_drone_inventory = not show_drone_inventory
-                    elif base.is_clicked(click_pos):
-                        show_base_inventory = not show_base_inventory
+                    else:
+                        # Check Vehicle Bay buildings
+                        for b in building_manager.buildings:
+                            gx, gy, bsize, b_type = b["gx"], b["gy"], b["size"], b["type"]
+                            rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, bsize[0]*TILE_SIZE, bsize[1]*TILE_SIZE)
+                            if b_type == "Vehicle Bay" and rect.collidepoint(click_pos):
+                                vehicle_inventory = VehicleBayInventory(vehicle_bay=b, dashboard=dashboard)
+                                show_vehicle_inventory = True
 
-                # ---------------- Left-click ---------------- #
-                elif event.button == 1:
+                        # Base click
+                        base_rect_px = pygame.Rect(base.x*TILE_SIZE-base.radius*TILE_SIZE, base.y*TILE_SIZE-base.radius*TILE_SIZE, base.radius*2*TILE_SIZE, base.radius*2*TILE_SIZE)
+                        if base_rect_px.collidepoint(click_pos):
+                            show_base_inventory = not show_base_inventory
+
+                elif event.button == 1:  # Left-click
                     if ignore_next_click:
                         ignore_next_click = False
                         continue
@@ -174,7 +169,7 @@ def game_loop():
                         b_size = b_info.get("size", (4, 4))
                         cost = 1
                         if dashboard.metals >= cost:
-                            if building_manager.add_building(gx, gy, size=b_size, color=(200, 200, 200)):
+                            if building_manager.add_building(gx, gy, size=b_size, color=(200, 200, 200), b_type=placing_building):
                                 dashboard.update_metrics(metals=dashboard.metals - cost)
                                 bottom_right_message = f"Placed {placing_building} at {gx},{gy}"
                                 message_timer = 2
@@ -207,31 +202,26 @@ def game_loop():
                             else:
                                 selected_unit.set_target(click_pos)
 
-                        # Update dashboard per turn
+                        # Dashboard per turn
                         dashboard.next_round()
-                        new_food = max(dashboard.food - dashboard.population * 2, 0)
-                        new_water = max(dashboard.water - dashboard.population * 1, 0)
+                        new_food = max(dashboard.food - dashboard.population*2, 0)
+                        new_water = max(dashboard.water - dashboard.population*1, 0)
                         dashboard.update_metrics(food=new_food, water=new_water)
 
-        # Update events
         event_manager.update(dt)
-
-        # Update mining and inventory
         rover_inventory.update(resources)
-        drone_inventory.update(resources)  # <-- update drone inventory
-
-        # Update base inventory
+        drone_inventory.update(resources)
         base_inventory.update()
+        if show_vehicle_inventory and vehicle_inventory:
+            vehicle_inventory.update()
 
         # ---------------- Draw Everything ---------------- #
-        screen.fill((0, 0, 0))
-
+        screen.fill((0,0,0))
         draw_terrain(screen, noise_map, TILE_SIZE)
 
-        # Draw resources
         for res in resources:
             for x, y in res.positions:
-                rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+                rect = pygame.Rect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE)
                 pygame.draw.rect(screen, res.color, rect)
 
         building_manager.draw(screen, TILE_SIZE)
@@ -242,36 +232,32 @@ def game_loop():
         drone.move(noise_map, TILE_SIZE, COLS, ROWS)
         drone.draw(screen)
 
-        # Draw building preview
         if placing_building:
             gx = mouse_pos[0] // TILE_SIZE
             gy = mouse_pos[1] // TILE_SIZE
             b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
-            b_size = b_info.get("size", (4, 4))
+            b_size = b_info.get("size", (4,4))
             valid = building_manager.can_place(gx, gy, b_size)
-            color = (0, 200, 0) if valid else (200, 0, 0)
-            preview_rect = pygame.Rect(
-                gx * TILE_SIZE, gy * TILE_SIZE,
-                b_size[0] * TILE_SIZE, b_size[1] * TILE_SIZE
-            )
+            color = (0,200,0) if valid else (200,0,0)
+            preview_rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, b_size[0]*TILE_SIZE, b_size[1]*TILE_SIZE)
             pygame.draw.rect(screen, color, preview_rect, 2)
 
-        # Draw inventories and UI
         if show_rover_inventory:
             rover_inventory.draw(screen, resources)
         if show_drone_inventory:
             drone_inventory.draw(screen, resources)
         if show_base_inventory:
             base_inventory.draw(screen)
+        if show_vehicle_inventory and vehicle_inventory:
+            vehicle_inventory.draw(screen)
 
         dashboard.draw(screen)
         event_manager.draw(screen)
 
-        # Bottom-right messages
         if bottom_right_message and message_timer > 0:
             msg_font = pygame.font.SysFont("Arial", 20, bold=True)
-            msg_text = msg_font.render(bottom_right_message, True, (255, 255, 255))
-            screen.blit(msg_text, (WIDTH - msg_text.get_width() - 20, HEIGHT - msg_text.get_height() - 20))
+            msg_text = msg_font.render(bottom_right_message, True, (255,255,255))
+            screen.blit(msg_text, (WIDTH-msg_text.get_width()-20, HEIGHT-msg_text.get_height()-20))
             message_timer -= dt
         elif message_timer <= 0:
             bottom_right_message = ""
@@ -315,6 +301,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 # ---------------- Git Commands ---------------- #

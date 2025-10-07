@@ -13,11 +13,11 @@ class BaseInventory:
         self.error_message = ""
         self.build_queue = []  # list of tuples (building_name, finish_time, build_time)
         self.buildings = [
-            {"name": "Housing", "cost": {"metals": 5}, "build_time": 1, "size": (4, 4)},
-            {"name": "Farm", "cost": {"metals": 3}, "build_time": 2, "size": (2, 5)},
-            {"name": "Power Generator", "cost": {"metals": 4}, "build_time": 3, "size": (3, 2)},
-            {"name": "Factory", "cost": {"metals": 6}, "build_time": 4, "size": (5, 5)},
-            {"name": "Vehicle Bay", "cost": {"metals": 5}, "build_time": 3, "size": (5, 3)},
+            {"name": "Housing", "cost": {"metals": 5}, "build_time": 1, "size": (4, 4), "type": "Base"},
+            {"name": "Farm", "cost": {"metals": 3}, "build_time": 2, "size": (2, 5), "type": "Base"},
+            {"name": "Power Generator", "cost": {"metals": 4}, "build_time": 3, "size": (3, 2), "type": "Base"},
+            {"name": "Factory", "cost": {"metals": 6}, "build_time": 4, "size": (5, 5), "type": "Base"},
+            {"name": "Vehicle Bay", "cost": {"metals": 5}, "build_time": 3, "size": (5, 3), "type": "Vehicle Bay"},
         ]
 
     def handle_event(self, event):
