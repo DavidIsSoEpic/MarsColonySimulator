@@ -25,6 +25,7 @@ ROWS = HEIGHT // TILE_SIZE
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Mars Colony Simulator - Top-Down Mars Terrain")
 
+
 def game_loop():
     noise_map = generate_noise_map(ROWS, COLS)
     base = Base.spawn(noise_map, COLS, ROWS, TILE_SIZE)
@@ -49,6 +50,7 @@ def game_loop():
     building_manager.set_resources(resources)
     building_manager.set_base(base)
 
+    # --- Create units ---
     rover = Rover(base.x * TILE_SIZE, base.y * TILE_SIZE)
     rover.storage = 0
     rover.mining_active = False
@@ -57,6 +59,8 @@ def game_loop():
     drone = Drone(base.x * TILE_SIZE + 50, base.y * TILE_SIZE + 50)
 
     selected_unit = None
+
+    # --- Inventories ---
     show_rover_inventory = False
     rover_inventory = RoverInventory(rover)
     show_drone_inventory = False
@@ -89,6 +93,7 @@ def game_loop():
         mouse_pos = pygame.mouse.get_pos()
         keys = pygame.key.get_pressed()
 
+        # --- Rotate building if placing ---
         if placing_building:
             if keys[pygame.K_r] and not rotate_pressed_last_frame:
                 b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
@@ -143,15 +148,14 @@ def game_loop():
                     elif drone.is_clicked(click_pos):
                         show_drone_inventory = not show_drone_inventory
                     else:
-                        # Check Vehicle Bay buildings
+                        # Vehicle Bay
                         for b in building_manager.buildings:
                             gx, gy, bsize, b_type = b["gx"], b["gy"], b["size"], b["type"]
                             rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, bsize[0]*TILE_SIZE, bsize[1]*TILE_SIZE)
                             if b_type == "Vehicle Bay" and rect.collidepoint(click_pos):
                                 vehicle_inventory = VehicleBayInventory(vehicle_bay=b, dashboard=dashboard)
                                 show_vehicle_inventory = True
-
-                        # Base click
+                        # Base
                         base_rect_px = pygame.Rect(base.x*TILE_SIZE-base.radius*TILE_SIZE, base.y*TILE_SIZE-base.radius*TILE_SIZE, base.radius*2*TILE_SIZE, base.radius*2*TILE_SIZE)
                         if base_rect_px.collidepoint(click_pos):
                             show_base_inventory = not show_base_inventory
@@ -160,6 +164,20 @@ def game_loop():
                     if ignore_next_click:
                         ignore_next_click = False
                         continue
+
+                    # Check for Next Round button click
+                    if dashboard.handle_click(click_pos):
+                        # --- Advance round effects ---
+                        new_food = max(dashboard.food - dashboard.population*2, 0)
+                        new_water = max(dashboard.water - dashboard.population*1, 0)
+                        dashboard.update_metrics(food=new_food, water=new_water)
+
+                        # Rover mining logic
+                        if rover.mining_active:
+                            rover.storage += 1
+                            bottom_right_message = f"Rover mined 1 unit. Total: {rover.storage}"
+                            message_timer = 2
+                        continue  # Skip other left-click actions this frame
 
                     gx = click_pos[0] // TILE_SIZE
                     gy = click_pos[1] // TILE_SIZE
@@ -202,18 +220,16 @@ def game_loop():
                             else:
                                 selected_unit.set_target(click_pos)
 
-                        # Dashboard per turn
-                        dashboard.next_round()
-                        new_food = max(dashboard.food - dashboard.population*2, 0)
-                        new_water = max(dashboard.water - dashboard.population*1, 0)
-                        dashboard.update_metrics(food=new_food, water=new_water)
-
+        # ---------------- Updates ---------------- #
         event_manager.update(dt)
         rover_inventory.update(resources)
         drone_inventory.update(resources)
         base_inventory.update()
         if show_vehicle_inventory and vehicle_inventory:
             vehicle_inventory.update()
+
+        rover.move(noise_map, TILE_SIZE, COLS, ROWS)
+        drone.move(noise_map, TILE_SIZE, COLS, ROWS)
 
         # ---------------- Draw Everything ---------------- #
         screen.fill((0,0,0))
@@ -227,9 +243,7 @@ def game_loop():
         building_manager.draw(screen, TILE_SIZE)
         base.draw(screen, TILE_SIZE)
 
-        rover.move(noise_map, TILE_SIZE, COLS, ROWS)
         rover.draw(screen)
-        drone.move(noise_map, TILE_SIZE, COLS, ROWS)
         drone.draw(screen)
 
         if placing_building:
@@ -301,7 +315,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 
