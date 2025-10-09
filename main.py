@@ -50,21 +50,16 @@ def game_loop():
     building_manager.set_resources(resources)
     building_manager.set_base(base)
 
-    # --- Create units ---
-    rover = Rover(base.x * TILE_SIZE, base.y * TILE_SIZE)
-    rover.storage = 0
-    rover.mining_active = False
-    rover.awaiting_move_confirmation = False
-
-    drone = Drone(base.x * TILE_SIZE + 50, base.y * TILE_SIZE + 50)
+    # --- Units managed dynamically via VehicleBay ---
+    units = []
 
     selected_unit = None
 
     # --- Inventories ---
     show_rover_inventory = False
-    rover_inventory = RoverInventory(rover)
+    rover_inventory = None
     show_drone_inventory = False
-    drone_inventory = DroneInventory(drone)
+    drone_inventory = None
 
     show_base_inventory = False
     base_inventory = BaseInventory(base, None)
@@ -80,6 +75,7 @@ def game_loop():
     rotate_pressed_last_frame = False
 
     dashboard = Dashboard(rounds_total=30)
+
     dashboard.update_metrics(population=5, food=50, power=20, water=30, metals=20, soldiers=0, current_event="")
     base_inventory.dashboard = dashboard
 
@@ -109,13 +105,13 @@ def game_loop():
                 running = False
 
             # ---------------- Inventories ---------------- #
-            if show_rover_inventory:
+            if show_rover_inventory and rover_inventory:
                 action = rover_inventory.handle_event(event, resources)
                 if action == "close":
                     show_rover_inventory = False
                 clicked_ui = True
 
-            if show_drone_inventory:
+            if show_drone_inventory and drone_inventory:
                 action = drone_inventory.handle_event(event, resources)
                 if action == "close":
                     show_drone_inventory = False
@@ -132,7 +128,7 @@ def game_loop():
                 clicked_ui = True
 
             if show_vehicle_inventory and vehicle_inventory:
-                action = vehicle_inventory.handle_event(event)
+                action = vehicle_inventory.handle_event(event, units)
                 if action == "close":
                     show_vehicle_inventory = False
                 clicked_ui = True
@@ -143,17 +139,24 @@ def game_loop():
                 clicked_on_unit = False
 
                 if event.button == 3:  # Right-click
-                    if rover.is_clicked(click_pos):
-                        show_rover_inventory = not show_rover_inventory
-                    elif drone.is_clicked(click_pos):
-                        show_drone_inventory = not show_drone_inventory
-                    else:
+                    for u in units:
+                        if u.is_clicked(click_pos):
+                            if isinstance(u, Rover):
+                                show_rover_inventory = not show_rover_inventory
+                                rover_inventory = RoverInventory(u)
+                            elif isinstance(u, Drone):
+                                show_drone_inventory = not show_drone_inventory
+                                drone_inventory = DroneInventory(u)
+                            clicked_ui = True
+                            break
+
+                    if not clicked_ui:
                         # Vehicle Bay
                         for b in building_manager.buildings:
                             gx, gy, bsize, b_type = b["gx"], b["gy"], b["size"], b["type"]
                             rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, bsize[0]*TILE_SIZE, bsize[1]*TILE_SIZE)
                             if b_type == "Vehicle Bay" and rect.collidepoint(click_pos):
-                                vehicle_inventory = VehicleBayInventory(vehicle_bay=b, dashboard=dashboard)
+                                vehicle_inventory = VehicleBayInventory(vehicle_bay=b, dashboard=dashboard, game_units=units)
                                 show_vehicle_inventory = True
                         # Base
                         base_rect_px = pygame.Rect(base.x*TILE_SIZE-base.radius*TILE_SIZE, base.y*TILE_SIZE-base.radius*TILE_SIZE, base.radius*2*TILE_SIZE, base.radius*2*TILE_SIZE)
@@ -165,23 +168,35 @@ def game_loop():
                         ignore_next_click = False
                         continue
 
+                    # Stop controlling button
+                    if dashboard.stop_control_button and dashboard.stop_control_button.collidepoint(click_pos):
+                        selected_unit = None
+                        for u in units:
+                            u.awaiting_move_confirmation = False
+                        continue
+
                     # Check for Next Round button click
                     if dashboard.handle_click(click_pos):
-                        # --- Advance round effects ---
                         new_food = max(dashboard.food - dashboard.population*2, 0)
                         new_water = max(dashboard.water - dashboard.population*1, 0)
                         dashboard.update_metrics(food=new_food, water=new_water)
 
-                        # Rover mining logic
-                        if rover.mining_active:
-                            rover.storage += 1
-                            bottom_right_message = f"Rover mined 1 unit. Total: {rover.storage}"
-                            message_timer = 2
-                        continue  # Skip other left-click actions this frame
+                        # Mining logic
+                        for u in units:
+                            if isinstance(u, Rover) and u.mining_active:
+                                u.storage += 1
+                                bottom_right_message = f"Rover mined 1 unit. Total: {u.storage}"
+                                message_timer = 2
+                            elif isinstance(u, Drone) and u.mining_active:
+                                u.storage += 1
+                                bottom_right_message = f"Drone mined 1 unit. Total: {u.storage}"
+                                message_timer = 2
+                        continue
 
                     gx = click_pos[0] // TILE_SIZE
                     gy = click_pos[1] // TILE_SIZE
 
+                    # Building placement
                     if placing_building:
                         b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
                         b_size = b_info.get("size", (4, 4))
@@ -199,37 +214,56 @@ def game_loop():
                             bottom_right_message = "Not enough metals"
                             message_timer = 2
                     else:
-                        if rover.is_clicked(click_pos):
-                            selected_unit = rover
-                            clicked_on_unit = True
-                        elif drone.is_clicked(click_pos):
-                            selected_unit = drone
-                            clicked_on_unit = True
+                        # --- Unit control only if no inventory/menu is open ---
+                        if not clicked_ui:
+                            if selected_unit and selected_unit.is_clicked(click_pos):
+                                clicked_on_unit = True
+                            if not clicked_on_unit:
+                                for u in units:
+                                    if u.is_clicked(click_pos):
+                                        selected_unit = u
+                                        clicked_on_unit = True
+                                        break
 
-                        if not clicked_on_unit and not clicked_ui and selected_unit:
-                            if isinstance(selected_unit, Rover) and selected_unit.mining_active:
-                                if not selected_unit.awaiting_move_confirmation:
-                                    bottom_right_message = "This Rover is mining. Click again to move it."
-                                    message_timer = 3
-                                    selected_unit.awaiting_move_confirmation = True
+                            if not clicked_on_unit and selected_unit:
+                                # Rover movement
+                                if isinstance(selected_unit, Rover) and selected_unit.mining_active:
+                                    if not selected_unit.awaiting_move_confirmation:
+                                        bottom_right_message = "This Rover is mining. Click again to move it."
+                                        message_timer = 3
+                                        selected_unit.awaiting_move_confirmation = True
+                                    else:
+                                        selected_unit.awaiting_move_confirmation = False
+                                        selected_unit.mining_active = False
+                                        rover_inventory.mining = False
+                                        selected_unit.set_target(click_pos)
+                                # Drone movement
+                                elif isinstance(selected_unit, Drone) and selected_unit.mining_active:
+                                    if not selected_unit.awaiting_move_confirmation:
+                                        bottom_right_message = "This Drone is mining. Click again to move it."
+                                        message_timer = 3
+                                        selected_unit.awaiting_move_confirmation = True
+                                    else:
+                                        selected_unit.awaiting_move_confirmation = False
+                                        selected_unit.mining_active = False
+                                        drone_inventory.mining = False
+                                        selected_unit.set_target(click_pos)
                                 else:
-                                    selected_unit.awaiting_move_confirmation = False
-                                    selected_unit.mining_active = False
-                                    rover_inventory.mining = False
                                     selected_unit.set_target(click_pos)
-                            else:
-                                selected_unit.set_target(click_pos)
 
         # ---------------- Updates ---------------- #
         event_manager.update(dt)
-        rover_inventory.update(resources)
-        drone_inventory.update(resources)
+        if rover_inventory:
+            rover_inventory.update(resources)
+        if drone_inventory:
+            drone_inventory.update(resources)
         base_inventory.update()
         if show_vehicle_inventory and vehicle_inventory:
             vehicle_inventory.update()
 
-        rover.move(noise_map, TILE_SIZE, COLS, ROWS)
-        drone.move(noise_map, TILE_SIZE, COLS, ROWS)
+        # Move all units
+        for u in units:
+            u.move(noise_map, TILE_SIZE, COLS, ROWS)
 
         # ---------------- Draw Everything ---------------- #
         screen.fill((0,0,0))
@@ -243,8 +277,8 @@ def game_loop():
         building_manager.draw(screen, TILE_SIZE)
         base.draw(screen, TILE_SIZE)
 
-        rover.draw(screen)
-        drone.draw(screen)
+        for u in units:
+            u.draw(screen)
 
         if placing_building:
             gx = mouse_pos[0] // TILE_SIZE
@@ -256,9 +290,9 @@ def game_loop():
             preview_rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, b_size[0]*TILE_SIZE, b_size[1]*TILE_SIZE)
             pygame.draw.rect(screen, color, preview_rect, 2)
 
-        if show_rover_inventory:
+        if show_rover_inventory and rover_inventory:
             rover_inventory.draw(screen, resources)
-        if show_drone_inventory:
+        if show_drone_inventory and drone_inventory:
             drone_inventory.draw(screen, resources)
         if show_base_inventory:
             base_inventory.draw(screen)
@@ -315,6 +349,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 

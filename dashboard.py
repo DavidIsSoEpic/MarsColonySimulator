@@ -24,7 +24,8 @@ class Dashboard:
         self.button_font = pygame.font.SysFont("Arial", 20, bold=True)
         self.button_width = 140
         self.button_height = 40
-        self.next_round_button = None  # will be created each draw
+        self.next_round_button = None
+        self.stop_control_button = None  # NEW
 
     def next_round(self):
         """Increment the current round."""
@@ -54,7 +55,7 @@ class Dashboard:
         screen.blit(render, (x, y))
 
     def draw(self, screen):
-        """Draw the dashboard panel and the Next Round button at top-right."""
+        """Draw the dashboard panel and buttons."""
         # dashboard text (top-left)
         x = 10
         y = 10
@@ -101,16 +102,25 @@ class Dashboard:
 
         pygame.draw.rect(screen, button_color, self.next_round_button, border_radius=6)
         pygame.draw.rect(screen, outline_color, self.next_round_button, 2, border_radius=6)
-
         text_surf = self.button_font.render("Next Round", True, text_color)
         text_rect = text_surf.get_rect(center=self.next_round_button.center)
         screen.blit(text_surf, text_rect)
 
+        # --- Stop Controlling button (RED, right below Next Round) ---
+        stop_y = button_y + self.button_height + 10
+        self.stop_control_button = pygame.Rect(button_x, stop_y, self.button_width, self.button_height)
+        pygame.draw.rect(screen, (200, 0, 0), self.stop_control_button, border_radius=6)
+        pygame.draw.rect(screen, (255, 255, 255), self.stop_control_button, 2, border_radius=6)
+        stop_text = self.button_font.render("Stop Controlling", True, (255,255,255))
+        stop_rect = stop_text.get_rect(center=self.stop_control_button.center)
+        screen.blit(stop_text, stop_rect)
+
     def handle_click(self, pos):
-        """Return True if the button was clicked and the round advanced."""
+        """Return 'next_round' or 'stop_control' if button clicked."""
         if self.next_round_button and self.next_round_button.collidepoint(pos):
             if self.current_round < self.rounds_total:
                 self.next_round()
-                return True
-            # if already max round, ignore click (disabled)
-        return False
+                return "next_round"
+        if self.stop_control_button and self.stop_control_button.collidepoint(pos):
+            return "stop_control"
+        return None
