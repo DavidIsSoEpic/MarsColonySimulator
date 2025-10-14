@@ -84,16 +84,29 @@ class Menu:
     def draw_background(self, screen):
         # Draw stars
         for x, y, color in self.stars:
+            # Ensure color is valid
+            if not color or len(color) != 3:
+                color = (255, 255, 255)
             screen.fill(color, rect=pygame.Rect(x, y, 2, 2))
-        # Draw Mars half-sphere
+
+        # Draw Mars half-sphere / terrain
         for y in range(self.rows):
             for x in range(self.cols):
                 val = self.noise_map[y][x]
-                if val < 0:
+                if val is None or val < 0:
                     continue
                 color = get_biome_color(val)
-                rect = pygame.Rect(x * self.tile_size, y * self.tile_size,
-                                   self.tile_size, self.tile_size)
+
+                # Fallback if biome function returns invalid
+                if not color or len(color) != 3:
+                    color = (100, 100, 100)  # grey for unknown
+
+                rect = pygame.Rect(
+                    x * self.tile_size,
+                    y * self.tile_size,
+                    self.tile_size,
+                    self.tile_size
+                )
                 pygame.draw.rect(screen, color, rect)
 
     def draw_main_menu(self, screen):

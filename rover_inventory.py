@@ -24,12 +24,13 @@ class RoverInventory:
             # X button
             x_rect = pygame.Rect(self.x + self.width - 35, self.y + 5, 30, 30)
             if x_rect.collidepoint(mx, my):
+                # Cancel left click movement if held
+                self.rover.awaiting_move_confirmation = False
                 return "close"
 
             # Mine button
             mine_rect = pygame.Rect(self.x + 50, self.y + self.height - 70, self.width - 100, 50)
             if mine_rect.collidepoint(mx, my):
-                # Do not move rover on button click
                 if self.rover.storage >= 5:
                     self.error_message = "Rover Storage is Full"
                     return None
@@ -50,7 +51,6 @@ class RoverInventory:
         return None
 
     def resource_under_rover(self, resources):
-        # Rover rectangle in pixels
         rover_rect = pygame.Rect(self.rover.x - self.rover.size//2, self.rover.y - self.rover.size//2,
                                  self.rover.size, self.rover.size)
         for res in resources:
@@ -63,7 +63,7 @@ class RoverInventory:
         return False
 
     def update(self, resources):
-        # Always update current resource under rover
+        # Update current resource under rover
         self.resource_under_rover(resources)
 
         # Stop mining if storage full
@@ -78,14 +78,10 @@ class RoverInventory:
             now = time.time()
             elapsed = now - self.mining_start_time
             if elapsed >= self.mine_interval:
-                # Add resource to rover storage after interval
                 self.rover.storage = min(self.rover.storage + 1, 5)
-                # Track resource type count
                 res_type = self.current_resource.type
-                if res_type not in self.rover.resources_held:
-                    self.rover.resources_held[res_type] = 0
-                self.rover.resources_held[res_type] += 1
-                self.mining_start_time = time.time()  # reset timer
+                self.rover.resources_held[res_type] = self.rover.resources_held.get(res_type, 0) + 1
+                self.mining_start_time = now  # reset timer
 
             # Stop mining if rover moved off resource
             if not self.resource_under_rover(resources):
@@ -94,7 +90,6 @@ class RoverInventory:
                 self.rover.mining_active = False
 
     def draw(self, screen, resources):
-        # Panel
         panel_rect = pygame.Rect(self.x, self.y, self.width, self.height)
         pygame.draw.rect(screen, (0, 0, 0), panel_rect)
         pygame.draw.rect(screen, (255, 255, 255), panel_rect, 3)
@@ -113,7 +108,7 @@ class RoverInventory:
         # Rover Info
         lines = [
             f"Rover Type: Standard",
-            f"Rover Power: {self.rover.speed}",
+            f"Rover Power: {int(self.rover.power)}%",
             f"Resource Under: {self.current_resource.type if self.current_resource else 'None'}",
             f"Rover Storage: {getattr(self.rover, 'storage', 0)}/5"
         ]
@@ -121,14 +116,14 @@ class RoverInventory:
             txt = self.font.render(line, True, (255, 255, 255))
             screen.blit(txt, (self.x + 20, self.y + 50 + i * 30))
 
-        # Display mined resources under storage
+        # Display mined resources
         y_offset = self.y + 50 + len(lines)*30
         for res_type, count in self.rover.resources_held.items():
             txt = self.font.render(f"{res_type}: {count}x", True, (200, 200, 255))
             screen.blit(txt, (self.x + 40, y_offset))
             y_offset += 30
 
-        # Mine Button near bottom
+        # Mine Button
         mine_rect = pygame.Rect(self.x + 50, self.y + self.height - 70, self.width - 100, 50)
         pygame.draw.rect(screen, (0, 255, 0) if not self.mining else (255, 0, 0), mine_rect)
 
@@ -144,7 +139,7 @@ class RoverInventory:
         screen.blit(txt, (mine_rect.x + (mine_rect.width - txt.get_width()) // 2,
                           mine_rect.y + (mine_rect.height - txt.get_height()) // 2))
 
-        # Error message above Mine button, centered
+        # Error message above Mine button
         if self.error_message:
             err_txt = self.font.render(self.error_message, True, (255, 100, 100))
             screen.blit(err_txt, (self.x + (self.width - err_txt.get_width()) // 2,
