@@ -3,7 +3,7 @@ import pygame
 class BuildingManager:
     def __init__(self, noise_map):
         self.noise_map = noise_map
-        # Each building is stored as a dict with keys: gx, gy, size, color, type
+        # Each building is stored as a dict with keys: gx, gy, size, color, type, object
         self.buildings = []
         self.resources = []  # list of ResourceDeposit objects (with .positions list of (x,y))
         self.base = None     # Base instance
@@ -112,17 +112,21 @@ class BuildingManager:
 
         return connected
 
-    def add_building(self, gx, gy, size=(4, 4), color=(200, 200, 200), b_type="Generic"):
+    def add_building(self, gx, gy, size=(4, 4), color=(200, 200, 200), b_type="Generic", obj=None):
         if self.can_place(gx, gy, size):
-            self.buildings.append({
+            building_dict = {
                 "gx": gx,
                 "gy": gy,
                 "size": size,
                 "color": color,
                 "type": b_type
-            })
+            }
+            if obj is not None:
+                building_dict["object"] = obj
+            self.buildings.append(building_dict)
             return True
         return False
+
 
     def draw(self, screen, tile_size):
         for b in self.buildings:
