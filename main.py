@@ -75,7 +75,7 @@ def game_loop():
     dashboard.food = 50
     dashboard.water = 30
     dashboard.power = 20
-    dashboard.metals = 10
+    dashboard.metals = 15
     dashboard.population = 5
     dashboard.soldiers = 0
     dashboard.current_event = ""
@@ -92,6 +92,33 @@ def game_loop():
         bottom_right_message = msg
         message_timer = duration
 
+    # ------------------- Helper: Recharge units ------------------- #
+# ------------------- Helper: Recharge units ------------------- #
+    def recharge_units_at_generators():
+        for b in building_manager.buildings:
+            if b["type"] == "Power Generator" and "object" in b:
+                generator = b["object"]
+                generator.update_power(dt)  # always recharge generator itself
+
+                # generator rectangle in pixels
+                rect = pygame.Rect(generator.gx * TILE_SIZE, generator.gy * TILE_SIZE,
+                                generator.size[0] * TILE_SIZE, generator.size[1] * TILE_SIZE)
+
+                for u in units:
+                    if isinstance(u, (Rover, Drone)):
+                        # check if unit is overlapping the generator
+                        ux, uy = int(u.x), int(u.y)
+                        if rect.collidepoint(ux, uy):
+                            # Only recharge if unit isn't already full
+                            if u.power < u.max_power and generator.power > 0:
+                                u.recharge(dt)
+                                generator.power -= 2 * dt
+                                if generator.power < 0:
+                                    generator.power = 0
+
+
+
+    # ------------------- Main Loop ------------------- #
     while running:
         dt = clock.tick(60) / 1000
         mouse_pos = pygame.mouse.get_pos()
@@ -142,39 +169,22 @@ def game_loop():
                 if action == "close":
                     show_vehicle_inventory = False
                 elif action in ("buy_rover", "buy_drone"):
-                    # handle purchase
                     spawn_x = (vehicle_inventory.vehicle_bay["gx"] + vehicle_inventory.vehicle_bay["size"][0] // 2) * TILE_SIZE + TILE_SIZE // 2
                     spawn_y = (vehicle_inventory.vehicle_bay["gy"] + vehicle_inventory.vehicle_bay["size"][1] // 2) * TILE_SIZE + TILE_SIZE // 2
-                    if action == "buy_rover":
-                        if dashboard.metals >= 5:
-                            new_rover = Rover(spawn_x, spawn_y)
-                            new_rover.storage = 0
-                            new_rover.resources_held = {}
-                            new_rover.mining_active = False
-                            new_rover.awaiting_move_confirmation = False
-                            new_rover.move_count = 0
-                            new_rover.max_moves = 2
-                            units.append(new_rover)
-                            dashboard.metals -= 5
-                            set_message("Rover constructed!")
-                            show_vehicle_inventory = False
-                        else:
-                            set_message("Not enough metal for Rover")
-                    elif action == "buy_drone":
-                        if dashboard.metals >= 10:
-                            new_drone = Drone(spawn_x, spawn_y - TILE_SIZE)
-                            new_drone.storage = 0
-                            new_drone.resources_held = {}
-                            new_drone.mining_active = False
-                            new_drone.awaiting_move_confirmation = False
-                            new_drone.move_count = 0
-                            new_drone.max_moves = 2
-                            units.append(new_drone)
-                            dashboard.metals -= 10
-                            set_message("Drone constructed!")
-                            show_vehicle_inventory = False
-                        else:
-                            set_message("Not enough metal for Drone")
+                    if action == "buy_rover" and dashboard.metals >= 5:
+                        new_rover = Rover(spawn_x, spawn_y)
+                        units.append(new_rover)
+                        dashboard.metals -= 5
+                        set_message("Rover constructed!")
+                        show_vehicle_inventory = False
+                    elif action == "buy_drone" and dashboard.metals >= 10:
+                        new_drone = Drone(spawn_x, spawn_y - TILE_SIZE)
+                        units.append(new_drone)
+                        dashboard.metals -= 10
+                        set_message("Drone constructed!")
+                        show_vehicle_inventory = False
+                    else:
+                        set_message("Not enough metal for this unit")
                 clicked_ui = True
 
             if show_power_inventory and power_inventory:
@@ -190,8 +200,7 @@ def game_loop():
                     ignore_next_click = False
                     continue
 
-                # Right-click: unit/building inventory
-                if event.button == 3:
+                if event.button == 3:  # right-click
                     clicked_on_unit = False
                     for u in units:
                         if u.is_clicked(click_pos):
@@ -236,9 +245,7 @@ def game_loop():
                         show_base_inventory = not show_base_inventory
                         clicked_ui = True
 
-                # Left-click: unit movement or building placement
-                elif event.button == 1:
-                    # Dashboard actions
+                elif event.button == 1:  # left-click
                     action = dashboard.handle_click(click_pos)
                     if action == "next_round":
                         dashboard.food = max(dashboard.food - dashboard.population*2, 0)
@@ -247,14 +254,14 @@ def game_loop():
                             if getattr(u, "mining_active", False):
                                 u.storage += 1
                                 set_message(f"{u.__class__.__name__} mined 1 unit. Total: {u.storage}", 2.0)
-                            u.move_count = 0
+                            if hasattr(u, "move_count"):
+                                u.move_count = 0
                         continue
                     elif action == "stop_control":
                         selected_unit = None
                         set_message("Stopped controlling unit", 1.5)
                         continue
 
-                    # Placement or movement
                     if placing_building:
                         b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
                         b_size = b_info.get("size", (4, 4))
@@ -274,7 +281,6 @@ def game_loop():
                         else:
                             set_message("Not enough metals")
                     else:
-                        # Unit selection/movement
                         clicked_on_unit = False
                         for u in units:
                             if u.is_clicked(click_pos):
@@ -304,7 +310,10 @@ def game_loop():
             if isinstance(u, Rover):
                 u.move(noise_map, TILE_SIZE, COLS, ROWS, dt)
             else:
-                u.move(noise_map, TILE_SIZE, COLS, ROWS)
+                u.move(noise_map, TILE_SIZE, COLS, ROWS, dt)
+
+        # Recharge units on generators
+        recharge_units_at_generators()
 
         if rover_inventory:
             rover_inventory.update(resources)
@@ -317,12 +326,14 @@ def game_loop():
         if show_power_inventory and power_inventory:
             power_inventory.update(dt)
 
-        # Update total generator power for dashboard
-        total_power_percent = 0
-        for b in building_manager.buildings:
-            if b["type"] == "Power Generator" and "object" in b:
-                total_power_percent += b["object"].power
-        dashboard.power = int(total_power_percent)
+        # Update dashboard total generator power
+        # Update dashboard to show total stored energy (percent) of all generators
+        total_power_percent = sum(
+            b["object"].power for b in building_manager.buildings
+            if b["type"] == "Power Generator" and "object" in b
+        )
+        dashboard.power = round(total_power_percent, 1)  # Shows stored energy %
+
 
         # ---------------- Drawing ---------------- #
         screen.fill((0,0,0))
@@ -421,6 +432,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
 
 
 

@@ -12,14 +12,24 @@ class Rover:
         self.color = color
         self.storage = 0
 
-        # --- Power attributes ---
-        self.max_power = 100              # Maximum power %
-        self.power = self.max_power       # Current power %
-        self.power_depletion_time = 30    # seconds to fully deplete power
+        # --- Power (Battery) Attributes ---
+        self.max_power = 100              # Max battery (%)
+        self.power = self.max_power       # Current battery (%)
+        self.power_depletion_time = 30    # Seconds to fully drain while moving
+        self.recharge_rate = 2            # % per second when on generator
+
+        # --- Movement / Mining ---
         self.awaiting_move_confirmation = False
         self.mining_active = False
         self.target = None
 
+        # --- Move counters ---
+        self.move_count = 0
+        self.max_moves = 2
+
+    # -----------------------------
+    # Target and movement
+    # -----------------------------
     def set_target(self, pos):
         self.target_x, self.target_y = pos
         self.target = pos
@@ -29,7 +39,7 @@ class Rover:
         dy = self.target_y - self.y
         distance = math.hypot(dx, dy)
 
-        # Only move if target exists, distance > 0, and has power
+        # Move only if there’s power and distance
         if distance > 0 and self.power > 0:
             if distance < self.speed:
                 next_x, next_y = self.target_x, self.target_y
@@ -45,21 +55,49 @@ class Rover:
                     moved_distance = math.hypot(next_x - self.x, next_y - self.y)
                     self.x, self.y = next_x, next_y
 
-                    # Deplete power only if actually moved
+                    # Deplete power when moving
                     if moved_distance > 0:
-                        # Power depletes over 30 seconds of continuous movement
-                        power_depletion_rate = self.max_power / self.power_depletion_time  # per second
-                        self.power -= power_depletion_rate * dt
+                        depletion_rate = self.max_power / self.power_depletion_time
+                        self.power -= depletion_rate * dt
                         if self.power < 0:
                             self.power = 0
 
+    # -----------------------------
+    # Recharge handling
+    # -----------------------------
+    def recharge(self, dt):
+        """Recharges rover battery while on a generator."""
+        if self.power < self.max_power:
+            self.power += self.recharge_rate * dt
+            if self.power > self.max_power:
+                self.power = self.max_power
 
+    # -----------------------------
+    # Drawing
+    # -----------------------------
     def draw(self, screen):
-        rect = pygame.Rect(int(self.x - self.size//2), int(self.y - self.size//2),
+        # Rover body
+        rect = pygame.Rect(int(self.x - self.size // 2), int(self.y - self.size // 2),
                            self.size, self.size)
         pygame.draw.rect(screen, self.color, rect)
 
+        # Power bar background
+        bar_width = self.size
+        bar_height = 4
+        bar_x = self.x - bar_width // 2
+        bar_y = self.y - self.size // 2 - 8
+
+        pygame.draw.rect(screen, (60, 60, 60), (bar_x, bar_y, bar_width, bar_height))
+
+        # Power bar fill
+        fill_width = int(bar_width * (self.power / self.max_power))
+        color = (50, 220, 50) if self.power > 30 else (220, 50, 50)
+        pygame.draw.rect(screen, color, (bar_x, bar_y, fill_width, bar_height))
+
+    # -----------------------------
+    # Click detection
+    # -----------------------------
     def is_clicked(self, pos):
-        rect = pygame.Rect(int(self.x - self.size//2), int(self.y - self.size//2),
+        rect = pygame.Rect(int(self.x - self.size // 2), int(self.y - self.size // 2),
                            self.size, self.size)
         return rect.collidepoint(pos)

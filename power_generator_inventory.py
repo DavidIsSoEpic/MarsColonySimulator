@@ -16,7 +16,7 @@ class PowerGeneratorInventory:
         self.close_rect = pygame.Rect(self.x + self.width - 35, self.y + 5, 30, 30)
 
         # Flicker setup
-        self.current_output = self.generator.output_base
+        self.current_output = self.generator.get_output()
         self.fluctuation_timer = 0.0
         self.fluctuation_interval = 0.3  # seconds
 
@@ -27,16 +27,13 @@ class PowerGeneratorInventory:
         return None
 
     def update(self, dt):
-        # Update generator charge %
-        self.generator.update_power(dt)
-
-        # Update flicker timer
+        # Update flicker timer for output display only
         self.fluctuation_timer += dt
         if self.fluctuation_timer >= self.fluctuation_interval:
             self.fluctuation_timer = 0.0
-            self.current_output = random.uniform(2.4, 5.0)
+            self.current_output = self.generator.get_output()
 
-        # Always update dashboard to reflect % charge
+        # Always update dashboard to reflect current charge %
         self.dashboard.power = int(self.generator.power)
 
     def draw(self, screen):
