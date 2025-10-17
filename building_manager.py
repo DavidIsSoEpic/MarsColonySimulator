@@ -38,20 +38,22 @@ class BuildingManager:
         if not self.base:
             return interior, outline
 
-        r = self.base.radius
+        # Use base.size (square) instead of radius
+        half = self.base.size // 2
         cx = self.base.x
         cy = self.base.y
-        r_sq = r * r
-        r1_sq = (r + 1) * (r + 1)
 
-        for dx in range(-r - 1, r + 2):
-            for dy in range(-r - 1, r + 2):
-                dist_sq = dx*dx + dy*dy
+        for dx in range(-half, half + self.base.size % 2):
+            for dy in range(-half, half + self.base.size % 2):
+                interior.add((cx + dx, cy + dy))
+
+        # Outline is one tile beyond interior
+        for dx in range(-half - 1, half + self.base.size % 2 + 1):
+            for dy in range(-half - 1, half + self.base.size % 2 + 1):
                 tx, ty = cx + dx, cy + dy
-                if dist_sq <= r_sq:
-                    interior.add((tx, ty))
-                elif r_sq < dist_sq <= r1_sq:
+                if (tx, ty) not in interior:
                     outline.add((tx, ty))
+
         return interior, outline
 
     def tiles_adjacent(self, tiles_a, tiles_b):
@@ -126,7 +128,6 @@ class BuildingManager:
             self.buildings.append(building_dict)
             return True
         return False
-
 
     def draw(self, screen, tile_size):
         for b in self.buildings:

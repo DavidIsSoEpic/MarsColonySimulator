@@ -18,23 +18,28 @@ class Drone:
         self.color = (255, 255, 0)
 
         # --- Power (Battery) Attributes ---
-        self.max_power = 100
+        self.max_power = 100  # full battery now 100%
         self.power = self.max_power
-        self.power_depletion_time = 30   # seconds to fully drain while moving
-        self.recharge_rate = 2           # % per second on generator
 
-        # --- Move counters ---
+        # Slower depletion → still slower than rover
+        self.power_depletion_time = 45  # seconds to drain from 100% → 0%
+        self.recharge_rate = 2          # % per second when on generator
+
         self.move_count = 0
-        self.max_moves = 2
+        self.max_moves = 9999
+
+        # Recharging rover
+        self.recharging_rover = None
 
     # -----------------------------
-    # Target and movement
+    # Movement
     # -----------------------------
     def set_target(self, pos):
-        self.target = pos
+        if not self.recharging_rover:  # can't move while recharging a rover
+            self.target = pos
 
     def move(self, noise_map, tile_size, cols, rows, dt):
-        if self.target and self.power > 0:
+        if self.target and self.power > 0 and not self.recharging_rover:
             dx = self.target[0] - self.x
             dy = self.target[1] - self.y
             dist = math.hypot(dx, dy)
@@ -52,20 +57,33 @@ class Drone:
                     self.power = 0
 
     # -----------------------------
-    # Recharge handling
+    # Recharge handling (generator)
     # -----------------------------
     def recharge(self, dt):
-        """Recharges drone battery while on a generator."""
-        if self.power < self.max_power:
-            self.power += self.recharge_rate * dt
-            if self.power > self.max_power:
-                self.power = self.max_power
+        self.power += self.recharge_rate * dt
+        if self.power > self.max_power:
+            self.power = self.max_power
+
+    # -----------------------------
+    # Transfer power to rover
+    # -----------------------------
+    def transfer_power_to_rover(self, rover, dt):
+        """Transfer power from drone → rover."""
+        if self.power > 0 and rover.power < rover.max_power:
+            transfer_rate = 2 * dt  # 2% per second
+            rover.power = min(rover.power + transfer_rate, rover.max_power)
+            self.power -= transfer_rate
+            if self.power < 0:
+                self.power = 0
+
+        # Stop if either battery is at limit
+        if self.power <= 0 or rover.power >= rover.max_power:
+            self.recharging_rover = None
 
     # -----------------------------
     # Drawing
     # -----------------------------
     def draw(self, screen):
-        # Drone body
         pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
 
         # Power bar

@@ -2,78 +2,86 @@ import pygame
 import random
 
 class Base:
-    def __init__(self, x, y, radius=3, color=(200, 200, 200)):
+    def __init__(self, x, y, size=4, color=(200, 200, 200), border_color=(0,0,0)):
+        """
+        x, y = center tile coordinates of the base
+        size = number of tiles per side (square)
+        color = interior color
+        border_color = outline color
+        """
         self.x = x
         self.y = y
-        self.radius = radius
+        self.size = size
         self.color = color
+        self.border_color = border_color
 
     @staticmethod
-    def spawn(noise_map, cols, rows, tile_size, radius=3, max_attempts=1000):
-        """Find a safe spawn location for the base (not on or near mountains, not behind UI)."""
+    def spawn(noise_map, cols, rows, tile_size, size=4, max_attempts=1000):
+        half = size // 2
         for _ in range(max_attempts):
-            x = random.randint(radius + 5, cols - radius - 6)
-            y = random.randint(radius + 5, rows - radius - 6)
+            x = random.randint(half + 5, cols - half - 6)
+            y = random.randint(half + 5, rows - half - 6)
 
             # Avoid UI area
             ui_block_width = 250
             ui_block_height = 200
-            if (x - radius) * tile_size < ui_block_width or (y - radius) * tile_size < ui_block_height:
+            if (x - half) * tile_size < ui_block_width or (y - half) * tile_size < ui_block_height:
                 continue
 
             safe = True
-            for dy in range(-radius, radius + 1):
-                for dx in range(-radius, radius + 1):
-                    if dx*dx + dy*dy <= radius*radius:
-                        nx = x + dx
-                        ny = y + dy
-                        if nx < 0 or nx >= cols or ny < 0 or ny >= rows:
-                            safe = False
-                            break
-                        if noise_map[ny][nx] >= 0.7:  # too steep/mountain
-                            safe = False
-                            break
+            for dy in range(-half, half + 1):
+                for dx in range(-half, half + 1):
+                    nx = x + dx
+                    ny = y + dy
+                    if nx < 0 or nx >= cols or ny < 0 or ny >= rows:
+                        safe = False
+                        break
+                    if noise_map[ny][nx] >= 0.7:  # too steep/mountain
+                        safe = False
+                        break
                 if not safe:
                     break
 
             if safe:
-                return Base(x, y, radius=radius)
+                return Base(x, y, size=size)
 
         # fallback
-        return Base(cols // 2, rows // 2, radius=radius)
+        return Base(cols // 2, rows // 2, size=size)
 
     def draw(self, screen, tile_size):
-        # Draw base outline (border)
-        for dy in range(-self.radius-1, self.radius+2):
-            for dx in range(-self.radius-1, self.radius+2):
-                if dx*dx + dy*dy <= (self.radius+1)**2:
-                    rect = pygame.Rect(
-                        (self.x+dx) * tile_size,
-                        (self.y+dy) * tile_size,
-                        tile_size,
-                        tile_size
-                    )
-                    pygame.draw.rect(screen, (0, 0, 0), rect)
+        half = self.size // 2
 
-        # Draw main base
-        for dy in range(-self.radius, self.radius+1):
-            for dx in range(-self.radius, self.radius+1):
-                if dx*dx + dy*dy <= self.radius**2:
+        # Draw border
+        for dy in range(-half-1, half+2):
+            for dx in range(-half-1, half+2):
+                # Only draw outer edge
+                if dx in (-half-1, half+1) or dy in (-half-1, half+1):
                     rect = pygame.Rect(
-                        (self.x+dx) * tile_size,
-                        (self.y+dy) * tile_size,
+                        (self.x + dx) * tile_size,
+                        (self.y + dy) * tile_size,
                         tile_size,
                         tile_size
                     )
-                    pygame.draw.rect(screen, self.color, rect)
+                    pygame.draw.rect(screen, self.border_color, rect)
+
+        # Draw interior
+        for dy in range(-half, half+1):
+            for dx in range(-half, half+1):
+                rect = pygame.Rect(
+                    (self.x + dx) * tile_size,
+                    (self.y + dy) * tile_size,
+                    tile_size,
+                    tile_size
+                )
+                pygame.draw.rect(screen, self.color, rect)
 
     def is_clicked(self, mouse_pos, tile_size=10):
-        """Return True if the mouse clicks inside the base circle."""
         mx, my = mouse_pos
+        half = self.size // 2
         rect = pygame.Rect(
-            (self.x - self.radius) * tile_size,
-            (self.y - self.radius) * tile_size,
-            self.radius * 2 * tile_size,
-            self.radius * 2 * tile_size
+            (self.x - half) * tile_size,
+            (self.y - half) * tile_size,
+            self.size * tile_size,
+            self.size * tile_size
         )
         return rect.collidepoint(mx, my)

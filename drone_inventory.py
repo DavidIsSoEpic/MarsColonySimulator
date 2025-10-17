@@ -2,21 +2,25 @@ import pygame
 import time
 
 class DroneInventory:
-    def __init__(self, drone):
+    def __init__(self, drone, rovers):
         self.drone = drone
+        self.rovers = rovers  # list of rover objects
         self.width = 400
-        self.height = 320
+        self.height = 370
         self.x = (1280 - self.width) // 2
         self.y = (720 - self.height) // 2
         self.font = pygame.font.SysFont("Arial", 24, bold=True)
         self.mining = False
         self.mining_start_time = None
-        self.mine_interval = 10  # seconds per resource
+        self.mine_interval = 10
         self.error_message = ""
         self.current_resource = None
         self.drone.storage = getattr(self.drone, 'storage', 0)
-        self.drone.resources_held = {}  # e.g., {"Iron": 3}
+        self.drone.resources_held = {}
 
+    # -----------------------------
+    # Handle clicks
+    # -----------------------------
     def handle_event(self, event, resources):
         if event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = event.pos
@@ -27,7 +31,7 @@ class DroneInventory:
                 return "close"
 
             # Mine button
-            mine_rect = pygame.Rect(self.x + 50, self.y + self.height - 70, self.width - 100, 50)
+            mine_rect = pygame.Rect(self.x + 50, self.y + self.height - 120, self.width - 100, 45)
             if mine_rect.collidepoint(mx, my):
                 if self.drone.storage >= 5:
                     self.error_message = "Drone Storage is Full"
@@ -45,29 +49,64 @@ class DroneInventory:
                         self.drone.mining_active = True
                     else:
                         self.error_message = "No Resources to Mine"
+
+            # Recharge Rover button
+            recharge_rect = pygame.Rect(self.x + 50, self.y + self.height - 65, self.width - 100, 45)
+            if recharge_rect.collidepoint(mx, my):
+                rover = self.rover_under_drone()
+                if rover:
+                    self.drone.recharging_rover = rover
+                    self.error_message = "Recharging Rover..."
+                else:
+                    self.error_message = "No Rover Under Drone"
+
         return None
 
+    # -----------------------------
+    # Helper: Check rover under drone
+    # -----------------------------
+    def rover_under_drone(self):
+        drone_rect = pygame.Rect(self.drone.x - self.drone.radius, self.drone.y - self.drone.radius,
+                                 self.drone.radius * 2, self.drone.radius * 2)
+        for rover in self.rovers:
+            rover_rect = pygame.Rect(rover.x - 10, rover.y - 10, 20, 20)
+            if drone_rect.colliderect(rover_rect):
+                return rover
+        return None
+
+    # -----------------------------
+    # Check resource under drone
+    # -----------------------------
     def resource_under_drone(self, resources):
         drone_rect = pygame.Rect(self.drone.x - self.drone.radius, self.drone.y - self.drone.radius,
-                                 self.drone.radius*2, self.drone.radius*2)
+                                 self.drone.radius * 2, self.drone.radius * 2)
         for res in resources:
             for x, y in res.positions:
-                res_rect = pygame.Rect(x*10, y*10, 10, 10)
+                res_rect = pygame.Rect(x * 10, y * 10, 10, 10)
                 if drone_rect.colliderect(res_rect):
                     self.current_resource = res
                     return True
         self.current_resource = None
         return False
 
-    def update(self, resources):
+    # -----------------------------
+    # Update logic
+    # -----------------------------
+    def update(self, dt, resources):
         self.resource_under_drone(resources)
 
+        # Handle power transfer if active
+        if self.drone.recharging_rover:
+            self.drone.transfer_power_to_rover(self.drone.recharging_rover, dt)
+
+        # Stop mining if storage full
         if self.drone.storage >= 5:
             self.mining = False
             self.error_message = "Drone Storage is Full"
             self.drone.mining_active = False
             return
 
+        # Mining
         if self.mining and self.current_resource:
             now = time.time()
             elapsed = now - self.mining_start_time
@@ -84,11 +123,15 @@ class DroneInventory:
                 self.error_message = "No Resources to Mine"
                 self.drone.mining_active = False
 
+    # -----------------------------
+    # Draw the inventory
+    # -----------------------------
     def draw(self, screen, resources):
         panel_rect = pygame.Rect(self.x, self.y, self.width, self.height)
         pygame.draw.rect(screen, (0, 0, 0), panel_rect)
         pygame.draw.rect(screen, (255, 255, 255), panel_rect, 3)
 
+        # Title
         title_text = self.font.render("Drone Inventory", True, (255, 255, 255))
         screen.blit(title_text, (self.x + (self.width - title_text.get_width()) // 2, self.y + 10))
 
@@ -102,7 +145,7 @@ class DroneInventory:
         # Drone Info
         lines = [
             f"Drone Type: Standard",
-            f"Drone Speed: {self.drone.speed}",
+            f"Drone Battery: {self.drone.power:.0f}%",
             f"Resource Under: {self.current_resource.type if self.current_resource else 'None'}",
             f"Drone Storage: {getattr(self.drone, 'storage', 0)}/5"
         ]
@@ -110,27 +153,23 @@ class DroneInventory:
             txt = self.font.render(line, True, (255, 255, 255))
             screen.blit(txt, (self.x + 20, self.y + 50 + i * 30))
 
-        y_offset = self.y + 50 + len(lines)*30
-        for res_type, count in self.drone.resources_held.items():
-            txt = self.font.render(f"{res_type}: {count}x", True, (200, 200, 255))
-            screen.blit(txt, (self.x + 40, y_offset))
-            y_offset += 30
-
-        mine_rect = pygame.Rect(self.x + 50, self.y + self.height - 70, self.width - 100, 50)
+        # Mine Button
+        mine_rect = pygame.Rect(self.x + 50, self.y + self.height - 120, self.width - 100, 45)
         pygame.draw.rect(screen, (0, 255, 0) if not self.mining else (255, 0, 0), mine_rect)
-
-        if self.mining and self.current_resource:
-            elapsed = int(time.time() - self.mining_start_time)
-            countdown = max(self.mine_interval - elapsed, 0)
-            mine_text = f"Mine {countdown}"
-        else:
-            mine_text = "Mine"
-
+        mine_text = "Mine" if not self.mining else "Stop Mining"
         txt = self.font.render(mine_text, True, (255, 255, 255))
         screen.blit(txt, (mine_rect.x + (mine_rect.width - txt.get_width()) // 2,
                           mine_rect.y + (mine_rect.height - txt.get_height()) // 2))
 
+        # Recharge Rover Button
+        recharge_rect = pygame.Rect(self.x + 50, self.y + self.height - 65, self.width - 100, 45)
+        pygame.draw.rect(screen, (100, 200, 255), recharge_rect)
+        txt = self.font.render("Recharge Rover", True, (0, 0, 0))
+        screen.blit(txt, (recharge_rect.x + (recharge_rect.width - txt.get_width()) // 2,
+                          recharge_rect.y + (recharge_rect.height - txt.get_height()) // 2))
+
+        # Error Message
         if self.error_message:
             err_txt = self.font.render(self.error_message, True, (255, 100, 100))
             screen.blit(err_txt, (self.x + (self.width - err_txt.get_width()) // 2,
-                                  mine_rect.y - 35))
+                                  self.y + self.height - 160))

@@ -66,7 +66,7 @@ class Rover:
     # Recharge handling
     # -----------------------------
     def recharge(self, dt):
-        """Recharges rover battery while on a generator."""
+        """Recharges rover battery while on a generator or via drone."""
         if self.power < self.max_power:
             self.power += self.recharge_rate * dt
             if self.power > self.max_power:

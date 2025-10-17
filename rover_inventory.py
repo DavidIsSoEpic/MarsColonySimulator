@@ -62,8 +62,8 @@ class RoverInventory:
         self.current_resource = None
         return False
 
-    def update(self, resources):
-        # Update current resource under rover
+    def update(self, dt, resources):
+        """Update rover inventory; handle mining logic based on time."""
         self.resource_under_rover(resources)
 
         # Stop mining if storage full
