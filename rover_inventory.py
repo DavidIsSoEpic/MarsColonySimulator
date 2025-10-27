@@ -27,6 +27,10 @@ class RoverInventory:
         self.rover.storage_capacity = 5
         self.rover.resources_held = getattr(self.rover, "resources_held", {})
 
+        # Move limiter
+        self.rover.move_count = getattr(self.rover, 'move_count', 0)
+        self.rover.max_moves = 2  # Limit moves per round
+
     # -----------------------------
     # Handle clicks
     # -----------------------------
@@ -61,11 +65,13 @@ class RoverInventory:
                     else:
                         self.error_message = "No Resources to Mine"
 
-            # Refine button (only if over Vehicle Bay)
-            if self.is_over_vehicle_bay():
-                refine_rect = pygame.Rect(self.x + 50, self.y + self.height - 55, self.width - 100, 45)
-                if refine_rect.collidepoint(mx, my):
+            # Refine button (always visible)
+            refine_rect = pygame.Rect(self.x + 50, self.y + self.height - 55, self.width - 100, 45)
+            if refine_rect.collidepoint(mx, my):
+                if self.is_over_vehicle_bay():
                     self.refine_resources()
+                else:
+                    self.error_message = "Must be over Vehicle Bay to refine"
 
         return None
 
@@ -131,9 +137,12 @@ class RoverInventory:
                 self.error_message = "No Resources to Mine"
 
     # -----------------------------
-    # Apply +2 mining per round
+    # Apply +2 mining per round & reset moves
     # -----------------------------
     def apply_next_round_mining(self):
+        # Reset moves each round
+        self.rover.move_count = 0
+
         if self.mining and self.current_resource:
             gain = 2
             remaining_space = self.rover.storage_capacity - self.rover.storage
@@ -190,15 +199,17 @@ class RoverInventory:
             f"Rover Type: Standard",
             f"Rover Battery: {self.rover.power:.0f}%",
             f"Resource Under: {self.current_resource.type if self.current_resource else 'None'}",
+            f"Moves Left: {self.rover.max_moves - self.rover.move_count}/{self.rover.max_moves}",
             f"Rover Storage: {self.rover.storage}/{self.rover.storage_capacity}"
+
         ]
         for i, line in enumerate(lines):
             txt = self.font.render(line, True, (255, 255, 255))
-            screen.blit(txt, (self.x + 20, self.y + 50 + i * 30))
+            screen.blit(txt, (self.x + 20, self.y + 50 + i * 28))
 
         # Held resources
         if self.rover.resources_held:
-            y_offset = self.y + 190
+            y_offset = self.y + 50 + len(lines)*28 + 5
             for res_type, amt in self.rover.resources_held.items():
                 txt = self.font.render(f"+{amt} {res_type.capitalize()}", True, (0, 255, 0))
                 screen.blit(txt, (self.x + 40, y_offset))
@@ -212,13 +223,12 @@ class RoverInventory:
         screen.blit(txt, (mine_rect.x + (mine_rect.width - txt.get_width()) // 2,
                           mine_rect.y + (mine_rect.height - txt.get_height()) // 2))
 
-        # Refine button (if over Vehicle Bay)
-        if self.is_over_vehicle_bay():
-            refine_rect = pygame.Rect(self.x + 50, self.y + self.height - 55, self.width - 100, 45)
-            pygame.draw.rect(screen, (100, 200, 255), refine_rect)
-            txt = self.font.render("Refine", True, (0, 0, 0))
-            screen.blit(txt, (refine_rect.x + (refine_rect.width - txt.get_width()) // 2,
-                              refine_rect.y + (refine_rect.height - txt.get_height()) // 2))
+        # Refine button (always visible)
+        refine_rect = pygame.Rect(self.x + 50, self.y + self.height - 55, self.width - 100, 45)
+        pygame.draw.rect(screen, (100, 200, 255), refine_rect)
+        txt = self.font.render("Refine", True, (0, 0, 0))
+        screen.blit(txt, (refine_rect.x + (refine_rect.width - txt.get_width()) // 2,
+                          refine_rect.y + (refine_rect.height - txt.get_height()) // 2))
 
         # Error message
         if self.error_message:
