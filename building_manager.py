@@ -38,7 +38,6 @@ class BuildingManager:
         if not self.base:
             return interior, outline
 
-        # Use base.size (square) instead of radius
         half = self.base.size // 2
         cx = self.base.x
         cy = self.base.y
@@ -128,6 +127,18 @@ class BuildingManager:
             self.buildings.append(building_dict)
             return True
         return False
+
+    def get_building_at(self, gx, gy, b_type=None):
+        """
+        Returns the building dict at grid position (gx, gy).
+        If b_type is provided, only returns a building of that type.
+        """
+        for b in self.buildings:
+            interior = self.get_interior_tiles(b["gx"], b["gy"], b["size"])
+            if (gx, gy) in interior:
+                if b_type is None or b["type"] == b_type:
+                    return b
+        return None
 
     def draw(self, screen, tile_size):
         for b in self.buildings:

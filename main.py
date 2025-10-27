@@ -71,8 +71,8 @@ def game_loop():
     power_inventory = None
     show_housing_inventory = False
     housing_inventory = None
-    show_farm_inventory = False          # NEW
-    farm_inventory = None                 # NEW
+    show_farm_inventory = False
+    farm_inventory = None
 
     bottom_right_message = ""
     message_timer = 0
@@ -86,6 +86,7 @@ def game_loop():
     dashboard.water = 30
     dashboard.power = 20
     dashboard.metals = 25
+    dashboard.marsium = 0
     dashboard.population = 5
     dashboard.soldiers = 0
     dashboard.current_event = ""
@@ -178,6 +179,8 @@ def game_loop():
                     spawn_y = (vehicle_inventory.vehicle_bay["gy"] + vehicle_inventory.vehicle_bay["size"][1] // 2) * TILE_SIZE + TILE_SIZE // 2
                     if action == "buy_rover" and dashboard.metals >= 5:
                         new_rover = Rover(spawn_x, spawn_y)
+                        # Attach inventory immediately
+                        new_rover.inventory = RoverInventory(new_rover, building_manager, dashboard, units)
                         units.append(new_rover)
                         dashboard.metals -= 5
                         set_message("Rover constructed!")
@@ -206,7 +209,7 @@ def game_loop():
                     ignore_next_click = True
                 clicked_ui = True
 
-            if show_farm_inventory and farm_inventory:  # NEW
+            if show_farm_inventory and farm_inventory:
                 action = farm_inventory.handle_event(event)
                 if action == "close":
                     show_farm_inventory = False
@@ -225,7 +228,10 @@ def game_loop():
                     for u in units:
                         if u.is_clicked(click_pos):
                             if isinstance(u, Rover):
-                                rover_inventory = RoverInventory(u)
+                                rover_inventory = getattr(u, "inventory", None)
+                                if not rover_inventory:
+                                    rover_inventory = RoverInventory(u, building_manager, dashboard, units)
+                                    u.inventory = rover_inventory
                                 show_rover_inventory = not show_rover_inventory
                             elif isinstance(u, Drone):
                                 drone_inventory = DroneInventory(u, [r for r in units if isinstance(r, Rover)])
@@ -236,46 +242,31 @@ def game_loop():
                         clicked_ui = True
                         continue
 
-                    # Power generator inventory
+                    # Check building inventories
                     for b in building_manager.buildings:
                         gx, gy, bsize, b_type = b["gx"], b["gy"], b["size"], b["type"]
                         rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, bsize[0]*TILE_SIZE, bsize[1]*TILE_SIZE)
-                        if b_type == "Power Generator" and rect.collidepoint(click_pos):
-                            if "object" in b:
+                        if rect.collidepoint(click_pos):
+                            if b_type == "Power Generator" and "object" in b:
                                 power_inventory = PowerGeneratorInventory(b["object"], dashboard)
                                 show_power_inventory = True
                                 clicked_ui = True
                                 break
-
-                    # Vehicle Bay inventory
-                    for b in building_manager.buildings:
-                        gx, gy, bsize, b_type = b["gx"], b["gy"], b["size"], b["type"]
-                        rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, bsize[0]*TILE_SIZE, bsize[1]*TILE_SIZE)
-                        if b_type == "Vehicle Bay" and rect.collidepoint(click_pos):
-                            vehicle_inventory = VehicleBayInventory(b, dashboard)
-                            show_vehicle_inventory = True
-                            clicked_ui = True
-                            break
-
-                    # Housing building inventory
-                    for b in building_manager.buildings:
-                        gx, gy, bsize, b_type = b["gx"], b["gy"], b["size"], b["type"]
-                        rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, bsize[0]*TILE_SIZE, bsize[1]*TILE_SIZE)
-                        if b_type == "Housing" and rect.collidepoint(click_pos):
-                            housing_inventory = HousingInventory(b, dashboard)
-                            show_housing_inventory = not show_housing_inventory
-                            clicked_ui = True
-                            break
-
-                    # Farm building inventory
-                    for b in building_manager.buildings:
-                        gx, gy, bsize, b_type = b["gx"], b["gy"], b["size"], b["type"]
-                        rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, bsize[0]*TILE_SIZE, bsize[1]*TILE_SIZE)
-                        if b_type == "Farm" and rect.collidepoint(click_pos):
-                            farm_inventory = FarmInventory(b, dashboard)
-                            show_farm_inventory = not show_farm_inventory
-                            clicked_ui = True
-                            break
+                            elif b_type == "Vehicle Bay":
+                                vehicle_inventory = VehicleBayInventory(b, dashboard)
+                                show_vehicle_inventory = True
+                                clicked_ui = True
+                                break
+                            elif b_type == "Housing":
+                                housing_inventory = HousingInventory(b, dashboard)
+                                show_housing_inventory = not show_housing_inventory
+                                clicked_ui = True
+                                break
+                            elif b_type == "Farm":
+                                farm_inventory = FarmInventory(b, dashboard)
+                                show_farm_inventory = not show_farm_inventory
+                                clicked_ui = True
+                                break
 
                     # Base inventory
                     half = base.size // 2
@@ -292,21 +283,30 @@ def game_loop():
                         continue
 
                     action = dashboard.handle_click(click_pos)
+                    # --- Inside the game loop, in the "Next Round" click handler --- #
                     if action == "next_round":
+                        # Reduce food/water
                         dashboard.food = max(dashboard.food - dashboard.population*2, 0)
                         dashboard.water = max(dashboard.water - dashboard.population*1, 0)
+
+                        # --- Apply mining for all rovers ---
                         for u in units:
-                            if getattr(u, "mining_active", False):
-                                u.storage += 1
-                                set_message(f"{u.__class__.__name__} mined 1 unit. Total: {u.storage}", 2.0)
+                            if isinstance(u, Rover):
+                                if not hasattr(u, "inventory") or u.inventory is None:
+                                    u.inventory = RoverInventory(u, building_manager, dashboard, units)
+                                # Apply the mining accumulated last round
+                                u.inventory.apply_next_round_mining()
                             if hasattr(u, "move_count"):
                                 u.move_count = 0
+
                         continue
+
                     elif action == "stop_control":
                         selected_unit = None
                         set_message("Stopped controlling unit", 1.5)
                         continue
 
+                    # Building placement or unit movement
                     if placing_building:
                         b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
                         b_size = b_info.get("size", (4, 4))
@@ -361,8 +361,9 @@ def game_loop():
         recharge_units_at_generators(dt)
 
         # --- Inventory updates ---
-        if rover_inventory:
-            rover_inventory.update(dt, resources)
+        for u in units:
+            if hasattr(u, "inventory") and u.inventory:
+                u.inventory.update(dt, resources)
         if drone_inventory:
             drone_inventory.update(dt, resources)
         if base_inventory:
@@ -370,7 +371,7 @@ def game_loop():
         if show_vehicle_inventory and vehicle_inventory:
             vehicle_inventory.update()
         if show_power_inventory and power_inventory:
-            power_inventory.update(dt)
+            power_inventory.update()
         if show_housing_inventory and housing_inventory:
             housing_inventory.update()
         if show_farm_inventory and farm_inventory:
@@ -404,9 +405,10 @@ def game_loop():
             pygame.draw.rect(screen, color, pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, b_size[0]*TILE_SIZE, b_size[1]*TILE_SIZE), 2)
 
         # Draw inventories
-        if show_rover_inventory and rover_inventory:
-            rover_inventory.draw(screen, resources)
-        if show_drone_inventory and drone_inventory:
+        for u in units:
+            if hasattr(u, "inventory") and u.inventory and show_rover_inventory:
+                u.inventory.draw(screen, resources)
+        if drone_inventory and show_drone_inventory:
             drone_inventory.draw(screen, resources)
         if show_base_inventory:
             base_inventory.draw(screen)
@@ -484,6 +486,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
 
 
 # ---------------- Git Commands ---------------- #

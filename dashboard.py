@@ -18,6 +18,7 @@ class Dashboard:
         self.water = 50
         self.soldiers = 10
         self.metals = 20
+        self.marsium = 0
         self.current_event = "None"
 
         # Button appearance
@@ -77,6 +78,8 @@ class Dashboard:
         self.draw_text_with_outline(screen, f"Soldiers: {self.soldiers}", x, y)
         y += line_height
         self.draw_text_with_outline(screen, f"Metals: {self.metals}", x, y)
+        y += line_height
+        self.draw_text_with_outline(screen, f"Marsium: {self.marsium}", x, y)  # <-- ADD THIS
         y += line_height
         self.draw_text_with_outline(screen, "-"*20, x, y)
         y += line_height

@@ -11,6 +11,7 @@ class Rover:
         self.size = size
         self.color = color
         self.storage = 0
+        self.max_storage = 5  # Max resource units rover can hold
 
         # --- Power (Battery) Attributes ---
         self.max_power = 100              # Max battery (%)
@@ -22,6 +23,8 @@ class Rover:
         self.awaiting_move_confirmation = False
         self.mining_active = False
         self.target = None
+        self.current_resource = None      # Resource rover is currently mining
+        self.resources_held = {}          # Dictionary {"Iron": 3, "Copper": 2}
 
         # --- Move counters ---
         self.move_count = 0
