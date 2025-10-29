@@ -76,6 +76,7 @@ def game_loop():
     placing_building = None
     ignore_next_click = False
     rotate_pressed_last_frame = False
+    next_round_triggered = False  # Prevent movement during next round
 
     # --- Dashboard ---
     dashboard = Dashboard(rounds_total=30)
@@ -146,6 +147,7 @@ def game_loop():
                 if action == "close":
                     open_unit_inventory = None
                     ignore_next_click = True
+                    selected_unit = None
                 clicked_ui = True
 
             # --- Handle building/base inventories ---
@@ -154,10 +156,12 @@ def game_loop():
                 if action == "close":
                     show_base_inventory = False
                     ignore_next_click = True
+                    selected_unit = None
                 elif action and action.startswith("build_"):
                     placing_building = action.replace("build_", "")
                     show_base_inventory = False
                     ignore_next_click = True
+                    selected_unit = None
                 clicked_ui = True
 
             if show_vehicle_inventory and vehicle_inventory:
@@ -165,6 +169,7 @@ def game_loop():
                 if action == "close":
                     show_vehicle_inventory = False
                     ignore_next_click = True
+                    selected_unit = None
                 elif action in ("buy_rover", "buy_drone"):
                     spawn_x = (vehicle_inventory.vehicle_bay["gx"] + vehicle_inventory.vehicle_bay["size"][0] // 2) * TILE_SIZE + TILE_SIZE // 2
                     spawn_y = (vehicle_inventory.vehicle_bay["gy"] + vehicle_inventory.vehicle_bay["size"][1] // 2) * TILE_SIZE + TILE_SIZE // 2
@@ -186,6 +191,7 @@ def game_loop():
                         show_vehicle_inventory = False
                     else:
                         set_message("Not enough metal for this unit")
+                    selected_unit = None  # Clear selected unit after buying
                 clicked_ui = True
 
             if show_power_inventory and power_inventory:
@@ -193,6 +199,7 @@ def game_loop():
                 if action == "close":
                     show_power_inventory = False
                     ignore_next_click = True
+                    selected_unit = None
                 clicked_ui = True
 
             if show_housing_inventory and housing_inventory:
@@ -200,6 +207,7 @@ def game_loop():
                 if action == "close":
                     show_housing_inventory = False
                     ignore_next_click = True
+                    selected_unit = None
                 clicked_ui = True
 
             if show_farm_inventory and farm_inventory:
@@ -207,6 +215,7 @@ def game_loop():
                 if action == "close":
                     show_farm_inventory = False
                     ignore_next_click = True
+                    selected_unit = None
                 clicked_ui = True
 
             # --- Handle world clicks ---
@@ -244,21 +253,27 @@ def game_loop():
                             if b_type == "Power Generator" and "object" in b:
                                 power_inventory = PowerGeneratorInventory(b["object"], dashboard)
                                 show_power_inventory = True
+                                selected_unit = None
                                 clicked_ui = True
                                 break
                             elif b_type == "Vehicle Bay":
                                 vehicle_inventory = VehicleBayInventory(b, dashboard)
                                 show_vehicle_inventory = True
+                                selected_unit = None
                                 clicked_ui = True
                                 break
                             elif b_type == "Housing":
                                 housing_inventory = HousingInventory(b, dashboard)
                                 show_housing_inventory = not show_housing_inventory
+                                selected_unit = None
                                 clicked_ui = True
                                 break
                             elif b_type == "Farm":
-                                farm_inventory = FarmInventory(b, dashboard)
+                                if "object" not in b:
+                                    b["object"] = FarmInventory(b, dashboard)
+                                farm_inventory = b["object"]
                                 show_farm_inventory = not show_farm_inventory
+                                selected_unit = None
                                 clicked_ui = True
                                 break
 
@@ -270,6 +285,7 @@ def game_loop():
                                                base.size * TILE_SIZE)
                     if base_rect_px.collidepoint(click_pos) and not clicked_ui:
                         show_base_inventory = not show_base_inventory
+                        selected_unit = None
                         clicked_ui = True
 
                 # --- Left-click world actions ---
@@ -279,22 +295,28 @@ def game_loop():
 
                     action = dashboard.handle_click(click_pos)
                     if action == "next_round":
-                        dashboard.food = max(dashboard.food - dashboard.population*2, 0)
-                        dashboard.water = max(dashboard.water - dashboard.population*1, 0)
+                        # --- Start next round ---
+                        next_round_triggered = True
 
+                        dashboard.food = max(dashboard.food - dashboard.population*1, 0)
+                        dashboard.water = max(dashboard.water - dashboard.population*0.5, 0)
+
+                        # Apply farm production
+                        for b in building_manager.buildings:
+                            if b["type"] == "Farm" and "object" in b:
+                                b["object"].apply_next_round()
+
+                        # Reset unit move counts & mining/recharging
                         for u in units:
-                            if isinstance(u, Rover):
-                                if not hasattr(u, "inventory") or u.inventory is None:
-                                    u.inventory = RoverInventory(u, building_manager, dashboard, units)
-                                u.inventory.apply_next_round_mining()
-                            elif isinstance(u, Drone):
-                                if not hasattr(u, "inventory") or u.inventory is None:
-                                    u.inventory = DroneInventory(u, [r for r in units if isinstance(r, Rover)], dashboard, building_manager)
-                                u.inventory.apply_next_round_mining()
-                                # Reset move count and mining/recharge states
-                                u.move_count = 0
+                            u.move_count = 0
+                            if isinstance(u, Drone):
                                 u.mining_active = False
                                 u.recharging_rover = None
+                            # Apply unit mining/production if any
+                            if hasattr(u, "inventory") and u.inventory:
+                                u.inventory.apply_next_round_mining()
+
+                        next_round_triggered = False
                         continue
 
                     elif action == "stop_control":
@@ -348,7 +370,8 @@ def game_loop():
         # ---------------- Updates ---------------- #
         event_manager.update(dt)
 
-        if not (open_unit_inventory or show_base_inventory or show_vehicle_inventory or show_power_inventory or show_housing_inventory or show_farm_inventory):
+        # Only allow movement if no inventory is open
+        if not next_round_triggered and not (open_unit_inventory or show_base_inventory or show_vehicle_inventory or show_power_inventory or show_housing_inventory or show_farm_inventory):
             for u in units:
                 u.move(noise_map, TILE_SIZE, COLS, ROWS, dt)
 
@@ -364,7 +387,7 @@ def game_loop():
         if show_vehicle_inventory and vehicle_inventory:
             vehicle_inventory.update()
         if show_power_inventory and power_inventory:
-            power_inventory.update()
+            power_inventory.update(dt)
         if show_housing_inventory and housing_inventory:
             housing_inventory.update()
         if show_farm_inventory and farm_inventory:

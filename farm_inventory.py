@@ -1,4 +1,5 @@
 import pygame
+import math
 
 class FarmInventory:
     def __init__(self, building, dashboard=None):
@@ -12,69 +13,70 @@ class FarmInventory:
         self.line_spacing = 24
         self.error_message = ""
 
-        # Farm options with stats
-        self.farm_options = [
-            {
-                "name": "Grow Potatoes:",
-                "stats": ["Generates 5 Food per Round", "Costs 2 Water per round"]
-            },
-            {
-                "name": "Grow Carrots:",
-                "stats": ["Generates 10 Food per Round", "Costs 5 Water per round"]
-            },
-            {
-                "name": "Grow Tomatoes:",
-                "stats": ["Generates 20 Food per Round", "Costs 10 Water per round"]
-            },
-        ]
+        # --- Farm state ---
+        self.is_growing = False
+        self.level = 1
+        self.food_gain = 5
+        self.water_cost = 2
 
-        # Keep track of buttons for event handling
-        self.grow_buttons = []
+        # Buttons
+        self.grow_button = None
         self.upgrade_button = None
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = event.pos
 
-            # X button
+            # Close button
             x_rect = pygame.Rect(self.x + self.width - 35, self.y + 5, 30, 30)
             if x_rect.collidepoint(mx, my):
                 return "close"
 
-            # Grow buttons
-            for i, rect in enumerate(self.grow_buttons):
-                if rect.collidepoint(mx, my):
-                    self.error_message = f"{self.farm_options[i]['name']} Grow feature not implemented yet"
+            # Grow button
+            if self.grow_button and self.grow_button.collidepoint(mx, my):
+                if not self.is_growing:
+                    self.is_growing = True
+                    self.error_message = "Growing..."
+                else:
+                    self.is_growing = False
+                    self.error_message = "Stopped growing"
 
             # Upgrade button
             if self.upgrade_button and self.upgrade_button.collidepoint(mx, my):
-                self.error_message = "Upgrade feature not implemented yet"
+                if self.dashboard and self.dashboard.metals >= 4 and self.dashboard.marsium >= 1:
+                    self.dashboard.metals -= 4
+                    self.dashboard.marsium -= 1
+                    self.level += 1
+
+                    # Boost stats
+                    self.food_gain = math.ceil(self.food_gain * 1.25)
+                    self.water_cost += 2
+                    self.error_message = f"Farm upgraded to Level {self.level}!"
+                else:
+                    self.error_message = "Not enough resources to upgrade!"
 
         return None
 
     def update(self):
+        # nothing per frame yet
         pass
 
-    def wrap_text(self, text, max_width):
-        """Split text into lines that fit max_width"""
-        words = text.split()
-        lines = []
-        current_line = ""
-        for word in words:
-            test_line = current_line + " " + word if current_line else word
-            if self.font.size(test_line)[0] <= max_width:
-                current_line = test_line
+    def apply_next_round(self):
+        """Called each new round to apply farm production and costs."""
+        if self.is_growing and self.dashboard:
+            # Only produce if there’s enough water
+            if self.dashboard.water >= self.water_cost:
+                self.dashboard.water -= self.water_cost
+                self.dashboard.food += self.food_gain
+                self.error_message = f"+{self.food_gain} Food, -{self.water_cost} Water"
             else:
-                lines.append(current_line)
-                current_line = word
-        if current_line:
-            lines.append(current_line)
-        return lines
+                self.error_message = "Not enough Water!"
+                self.is_growing = False  # stop growing if can’t afford
 
     def draw(self, screen):
         # Panel
         panel_rect = pygame.Rect(self.x, self.y, self.width, self.height)
-        pygame.draw.rect(screen, (0, 0, 0), panel_rect)
+        pygame.draw.rect(screen, (10, 10, 10), panel_rect)
         pygame.draw.rect(screen, (255, 255, 255), panel_rect, 3)
 
         # Title
@@ -88,46 +90,41 @@ class FarmInventory:
         screen.blit(x_text, (x_rect.x + (x_rect.width - x_text.get_width()) // 2,
                              x_rect.y + (x_rect.height - x_text.get_height()) // 2))
 
-        # Draw farm options in columns
-        num_options = len(self.farm_options)
-        column_width = self.width // num_options
-        self.grow_buttons = []
-        for i, option in enumerate(self.farm_options):
-            col_x = self.x + i * column_width + 10
-            col_y = self.y + 60
+        # Level and crop info
+        col_x = self.x + 40
+        col_y = self.y + 70
 
-            # Option name
-            name_lines = self.wrap_text(option["name"], column_width - 20)
-            for line in name_lines:
-                txt = self.font.render(line, True, (255, 255, 255))
-                screen.blit(txt, (col_x, col_y))
-                col_y += self.line_spacing
+        lvl_text = self.font.render(f"Level: {self.level}", True, (255, 255, 255))
+        screen.blit(lvl_text, (col_x, col_y))
+        col_y += self.line_spacing
 
-            # Option stats
-            for stat in option["stats"]:
-                stat_lines = self.wrap_text(stat, column_width - 20)
-                for line in stat_lines:
-                    txt = self.font.render(line, True, (200, 255, 200))
-                    screen.blit(txt, (col_x, col_y))
-                    col_y += self.line_spacing
+        name_text = self.font.render("Crop: Potatoes", True, (255, 255, 0))
+        screen.blit(name_text, (col_x, col_y))
+        col_y += self.line_spacing
 
-            # Grow button under this column
-            grow_rect = pygame.Rect(col_x, col_y + 5, column_width - 20, 40)
-            pygame.draw.rect(screen, (0, 200, 0), grow_rect)
-            grow_text = self.font.render("Grow", True, (255, 255, 255))
-            screen.blit(grow_text, (grow_rect.x + (grow_rect.width - grow_text.get_width()) // 2,
-                                    grow_rect.y + (grow_rect.height - grow_text.get_height()) // 2))
-            self.grow_buttons.append(grow_rect)
+        stat_text1 = self.font.render(f"Produces: +{self.food_gain} Food / Round", True, (200, 255, 200))
+        stat_text2 = self.font.render(f"Uses: -{self.water_cost} Water / Round", True, (200, 200, 255))
+        screen.blit(stat_text1, (col_x, col_y)); col_y += self.line_spacing
+        screen.blit(stat_text2, (col_x, col_y)); col_y += self.line_spacing * 2
 
-        # Upgrade button at the bottom of panel
-        self.upgrade_button = pygame.Rect(self.x + 50, self.y + self.height - 70, self.width - 100, 50)
+        # Grow button
+        self.grow_button = pygame.Rect(col_x, col_y, self.width - 80, 45)
+        pygame.draw.rect(screen, (0, 200, 0) if not self.is_growing else (200, 50, 50), self.grow_button)
+        grow_text = "Grow" if not self.is_growing else "Growing..."
+        g_text = self.font.render(grow_text, True, (255, 255, 255))
+        screen.blit(g_text, (self.grow_button.x + (self.grow_button.width - g_text.get_width()) // 2,
+                             self.grow_button.y + (self.grow_button.height - g_text.get_height()) // 2))
+        col_y += 70
+
+        # Upgrade button
+        self.upgrade_button = pygame.Rect(col_x, col_y, self.width - 80, 45)
         pygame.draw.rect(screen, (0, 150, 255), self.upgrade_button)
-        upgrade_text = self.font.render("Upgrade", True, (255, 255, 255))
-        screen.blit(upgrade_text, (self.upgrade_button.x + (self.upgrade_button.width - upgrade_text.get_width()) // 2,
-                                   self.upgrade_button.y + (self.upgrade_button.height - upgrade_text.get_height()) // 2))
+        up_text = self.font.render("Upgrade (1 Marsium, 4 Metal)", True, (255, 255, 255))
+        screen.blit(up_text, (self.upgrade_button.x + (self.upgrade_button.width - up_text.get_width()) // 2,
+                              self.upgrade_button.y + (self.upgrade_button.height - up_text.get_height()) // 2))
 
         # Error message
         if self.error_message:
             err_txt = self.font.render(self.error_message, True, (255, 100, 100))
             screen.blit(err_txt, (self.x + (self.width - err_txt.get_width()) // 2,
-                                  self.upgrade_button.y - 35))
+                                  self.upgrade_button.y + 60))
