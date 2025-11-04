@@ -50,30 +50,18 @@ class Base:
 
     def draw(self, screen, tile_size):
         half = self.size // 2
+        rect = pygame.Rect(
+            (self.x - half) * tile_size,
+            (self.y - half) * tile_size,
+            self.size * tile_size,
+            self.size * tile_size
+        )
 
-        # Draw border
-        for dy in range(-half-1, half+2):
-            for dx in range(-half-1, half+2):
-                # Only draw outer edge
-                if dx in (-half-1, half+1) or dy in (-half-1, half+1):
-                    rect = pygame.Rect(
-                        (self.x + dx) * tile_size,
-                        (self.y + dy) * tile_size,
-                        tile_size,
-                        tile_size
-                    )
-                    pygame.draw.rect(screen, self.border_color, rect)
+        # Fill (base color)
+        pygame.draw.rect(screen, (180, 180, 180), rect)
 
-        # Draw interior
-        for dy in range(-half, half+1):
-            for dx in range(-half, half+1):
-                rect = pygame.Rect(
-                    (self.x + dx) * tile_size,
-                    (self.y + dy) * tile_size,
-                    tile_size,
-                    tile_size
-                )
-                pygame.draw.rect(screen, self.color, rect)
+        # Black inner outline — same style as buildings
+        pygame.draw.rect(screen, (0, 0, 0), rect, 2)
 
     def is_clicked(self, mouse_pos, tile_size=10):
         mx, my = mouse_pos

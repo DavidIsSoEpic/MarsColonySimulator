@@ -80,7 +80,7 @@ def game_loop():
 
     # --- Dashboard ---
     dashboard = Dashboard(rounds_total=30)
-    dashboard.food = 50
+    dashboard.food = 15
     dashboard.water = 30
     dashboard.power = 20
     dashboard.metals = 25
