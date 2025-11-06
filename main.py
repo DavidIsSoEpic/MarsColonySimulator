@@ -89,6 +89,10 @@ def game_loop():
     dashboard.soldiers = 0
     dashboard.current_event = ""
     base_inventory.dashboard = dashboard
+    dashboard.building_manager = building_manager
+    dashboard.noise_map = noise_map
+    dashboard.resources = resources
+
 
     # --- Event manager ---
     event_manager = EventManager(dashboard, WIDTH, HEIGHT)
@@ -368,7 +372,7 @@ def game_loop():
                                     selected_unit.move_count += 1
 
         # ---------------- Updates ---------------- #
-        event_manager.update(dt)
+        event_manager.update(dashboard.current_round)
 
         # Only allow movement if no inventory is open
         if not next_round_triggered and not (open_unit_inventory or show_base_inventory or show_vehicle_inventory or show_power_inventory or show_housing_inventory or show_farm_inventory):
@@ -393,10 +397,11 @@ def game_loop():
         if show_farm_inventory and farm_inventory:
             farm_inventory.update()
 
-        dashboard.power = round(sum(
-            b["object"].power for b in building_manager.buildings
-            if b["type"] == "Power Generator" and "object" in b
-        ), 1)
+        if dashboard.current_event != "Dust Storm":
+            dashboard.power = round(sum(
+                b["object"].power for b in building_manager.buildings
+                if b["type"] == "Power Generator" and "object" in b
+            ), 1)
 
         # ---------------- Drawing ---------------- #
         screen.fill((0,0,0))
@@ -430,8 +435,8 @@ def game_loop():
         if show_farm_inventory and farm_inventory:
             farm_inventory.draw(screen)
 
-        dashboard.draw(screen)
         event_manager.draw(screen)
+        dashboard.draw(screen)
 
         if bottom_right_message and message_timer>0:
             msg_font = pygame.font.SysFont("Arial", 20, bold=True)
