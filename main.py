@@ -7,6 +7,7 @@ from dashboard import Dashboard
 from event import EventManager
 from building import Base
 from menu import Menu
+from camera import Camera
 from resources import ResourceDeposit
 from rover_inventory import RoverInventory
 from drone_inventory import DroneInventory
@@ -23,8 +24,9 @@ pygame.init()
 # ---------------- Window setup ---------------- #
 WIDTH, HEIGHT = 1280, 720
 TILE_SIZE = 10
-COLS = WIDTH // TILE_SIZE
-ROWS = HEIGHT // TILE_SIZE
+COLS = 200  # wider than screen
+ROWS = 150  # taller than screen
+
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Mars Colony Simulator - Top-Down Mars Terrain")
@@ -34,6 +36,10 @@ def game_loop():
     noise_map = generate_noise_map(ROWS, COLS)
     base = Base.spawn(noise_map, COLS, ROWS, TILE_SIZE)
     building_manager = BuildingManager(noise_map)
+    camera = Camera(WIDTH, HEIGHT, COLS * TILE_SIZE, ROWS * TILE_SIZE)
+    camera.center_on(base.x * TILE_SIZE, base.y * TILE_SIZE)  # Center camera on base
+
+
 
     # Filter resources outside base
     all_resources = ResourceDeposit.spawn_resources(noise_map, COLS, ROWS, TILE_SIZE)
@@ -93,7 +99,6 @@ def game_loop():
     dashboard.noise_map = noise_map
     dashboard.resources = resources
 
-
     # --- Event manager ---
     event_manager = EventManager(dashboard, WIDTH, HEIGHT)
     clock = pygame.time.Clock()
@@ -108,7 +113,7 @@ def game_loop():
     # ------------------- Helper: Recharge units ------------------- #
     def recharge_units_at_generators(dt):
         for b in building_manager.buildings:
-            if b["type"] == "Power Generator" and "object" in b:
+            if b.get("type") == "Power Generator" and "object" in b:
                 generator = b["object"]
                 generator.update_power(dt)
 
@@ -129,6 +134,7 @@ def game_loop():
         dt = clock.tick(60) / 1000
         mouse_pos = pygame.mouse.get_pos()
         keys = pygame.key.get_pressed()
+        camera.handle_input(keys, dt)
 
         # Rotate building if placing
         if placing_building:
@@ -141,7 +147,11 @@ def game_loop():
                 rotate_pressed_last_frame = False
 
         clicked_ui = False
+
+        # --- Single event loop for everything ---
         for event in pygame.event.get():
+            camera.handle_event(event)
+
             if event.type == pygame.QUIT:
                 running = False
 
@@ -195,7 +205,7 @@ def game_loop():
                         show_vehicle_inventory = False
                     else:
                         set_message("Not enough metal for this unit")
-                    selected_unit = None  # Clear selected unit after buying
+                    selected_unit = None
                 clicked_ui = True
 
             if show_power_inventory and power_inventory:
@@ -224,16 +234,17 @@ def game_loop():
 
             # --- Handle world clicks ---
             if event.type == pygame.MOUSEBUTTONDOWN:
-                click_pos = event.pos
+                world_click = (event.pos[0] + camera.x, event.pos[1] + camera.y)
+
                 if ignore_next_click:
                     ignore_next_click = False
                     continue
 
-                # --- Right-click on units/buildings/base ---
+                # Right-click
                 if event.button == 3:
                     clicked_on_unit = False
                     for u in units:
-                        if u.is_clicked(click_pos):
+                        if u.is_clicked(world_click):
                             if isinstance(u, Rover):
                                 if not hasattr(u, "inventory") or u.inventory is None:
                                     u.inventory = RoverInventory(u, building_manager, dashboard, units)
@@ -244,16 +255,16 @@ def game_loop():
                                 open_unit_inventory = u
                             clicked_on_unit = True
                             break
-
                     if clicked_on_unit:
                         clicked_ui = True
                         continue
 
-                    # --- Check building inventories ---
+                    # Check buildings
                     for b in building_manager.buildings:
                         gx, gy, bsize, b_type = b["gx"], b["gy"], b["size"], b["type"]
                         rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, bsize[0]*TILE_SIZE, bsize[1]*TILE_SIZE)
-                        if rect.collidepoint(click_pos):
+                        rect = camera.apply(rect)
+                        if rect.collidepoint(world_click):
                             if b_type == "Power Generator" and "object" in b:
                                 power_inventory = PowerGeneratorInventory(b["object"], dashboard)
                                 show_power_inventory = True
@@ -281,67 +292,58 @@ def game_loop():
                                 clicked_ui = True
                                 break
 
-                    # --- Base inventory ---
+                    # Base
                     half = base.size // 2
                     base_rect_px = pygame.Rect((base.x - half) * TILE_SIZE,
                                                (base.y - half) * TILE_SIZE,
                                                base.size * TILE_SIZE,
                                                base.size * TILE_SIZE)
-                    if base_rect_px.collidepoint(click_pos) and not clicked_ui:
+                    if base_rect_px.collidepoint(world_click) and not clicked_ui:
                         show_base_inventory = not show_base_inventory
                         selected_unit = None
                         clicked_ui = True
 
-                # --- Left-click world actions ---
+                # Left-click world actions
                 elif event.button == 1:
                     if open_unit_inventory or show_base_inventory or show_vehicle_inventory or show_power_inventory or show_housing_inventory or show_farm_inventory:
                         continue
 
-                    action = dashboard.handle_click(click_pos)
+                    action = dashboard.handle_click(world_click)
                     if action == "next_round":
-                        # --- Start next round ---
                         next_round_triggered = True
-
                         dashboard.food = max(dashboard.food - dashboard.population*1, 0)
                         dashboard.water = max(dashboard.water - dashboard.population*0.5, 0)
-
-                        # Apply farm production
                         for b in building_manager.buildings:
                             if b["type"] == "Farm" and "object" in b:
                                 b["object"].apply_next_round()
-
-                        # Reset unit move counts & mining/recharging
                         for u in units:
                             u.move_count = 0
                             if isinstance(u, Drone):
                                 u.mining_active = False
                                 u.recharging_rover = None
-                            # Apply unit mining/production if any
                             if hasattr(u, "inventory") and u.inventory:
                                 u.inventory.apply_next_round_mining()
-
                         next_round_triggered = False
                         continue
-
                     elif action == "stop_control":
                         selected_unit = None
                         set_message("Stopped controlling unit", 1.5)
                         continue
 
-                    # --- Unit movement ---
+                    # Unit movement / building placement
                     if placing_building:
                         b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
-                        b_size = b_info.get("size", (4, 4))
+                        b_size = b_info.get("size", (4,4))
                         cost = b_info["cost"].get("metals", 0)
                         new_obj = PowerGenerator if placing_building == "Power Generator" else None
                         if dashboard.metals >= cost:
-                            if building_manager.add_building(click_pos[0]//TILE_SIZE, click_pos[1]//TILE_SIZE,
-                                                            size=b_size, color=(200,200,200),
-                                                            b_type=placing_building,
-                                                            obj=new_obj(gx=click_pos[0]//TILE_SIZE,
-                                                                        gy=click_pos[1]//TILE_SIZE) if new_obj else None):
+                            gx = world_click[0] // TILE_SIZE
+                            gy = world_click[1] // TILE_SIZE
+                            obj_instance = new_obj(gx=gx, gy=gy) if new_obj else None
+                            if building_manager.add_building(gx, gy, size=b_size, color=(200,200,200),
+                                                            b_type=placing_building, obj=obj_instance):
                                 dashboard.metals -= cost
-                                set_message(f"Placed {placing_building} at {click_pos[0]//TILE_SIZE},{click_pos[1]//TILE_SIZE}")
+                                set_message(f"Placed {placing_building} at {gx},{gy}")
                                 placing_building = None
                             else:
                                 set_message("Invalid building spot")
@@ -350,7 +352,7 @@ def game_loop():
                     else:
                         clicked_on_unit = False
                         for u in units:
-                            if u.is_clicked(click_pos):
+                            if u.is_clicked(world_click):
                                 selected_unit = u
                                 clicked_on_unit = True
                                 break
@@ -365,16 +367,15 @@ def game_loop():
                                     else:
                                         selected_unit.awaiting_move_confirmation = False
                                         selected_unit.mining_active = False
-                                        selected_unit.set_target(click_pos)
+                                        selected_unit.set_target(world_click)
                                         selected_unit.move_count += 1
                                 else:
-                                    selected_unit.set_target(click_pos)
+                                    selected_unit.set_target(world_click)
                                     selected_unit.move_count += 1
 
         # ---------------- Updates ---------------- #
         event_manager.update(dashboard.current_round)
 
-        # Only allow movement if no inventory is open
         if not next_round_triggered and not (open_unit_inventory or show_base_inventory or show_vehicle_inventory or show_power_inventory or show_housing_inventory or show_farm_inventory):
             for u in units:
                 u.move(noise_map, TILE_SIZE, COLS, ROWS, dt)
@@ -400,27 +401,34 @@ def game_loop():
         if dashboard.current_event != "Dust Storm":
             dashboard.power = round(sum(
                 b["object"].power for b in building_manager.buildings
-                if b["type"] == "Power Generator" and "object" in b
+                if b.get("type") == "Power Generator" and "object" in b
             ), 1)
 
         # ---------------- Drawing ---------------- #
         screen.fill((0,0,0))
-        draw_terrain(screen, noise_map, TILE_SIZE)
+        draw_terrain(screen, noise_map, TILE_SIZE, camera=camera)
+
+        # Draw resources
         for res in resources:
-            for x,y in res.positions:
-                pygame.draw.rect(screen, res.color, pygame.Rect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE))
-        building_manager.draw(screen, TILE_SIZE)
-        base.draw(screen, TILE_SIZE)
+            for x, y in res.positions:
+                rect = pygame.Rect(x*TILE_SIZE, y*TILE_SIZE, TILE_SIZE, TILE_SIZE)
+                rect = camera.apply(rect)
+                pygame.draw.rect(screen, res.color, rect)
+
+        building_manager.draw(screen, TILE_SIZE, camera=camera)
+        base.draw(screen, TILE_SIZE, camera=camera)
         for u in units:
-            u.draw(screen)
+            u.draw(screen, camera=camera)
 
         if placing_building:
-            gx, gy = mouse_pos[0]//TILE_SIZE, mouse_pos[1]//TILE_SIZE
+            gx, gy = (mouse_pos[0] + camera.x)//TILE_SIZE, (mouse_pos[1] + camera.y)//TILE_SIZE
             b_info = next(b for b in base_inventory.buildings if b["name"] == placing_building)
             b_size = b_info.get("size",(4,4))
             valid = building_manager.can_place(gx, gy, b_size)
             color = (0,200,0) if valid else (200,0,0)
-            pygame.draw.rect(screen, color, pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, b_size[0]*TILE_SIZE, b_size[1]*TILE_SIZE), 2)
+            rect = pygame.Rect(gx*TILE_SIZE, gy*TILE_SIZE, b_size[0]*TILE_SIZE, b_size[1]*TILE_SIZE)
+            rect = camera.apply(rect)
+            pygame.draw.rect(screen, color, rect, 2)
 
         if open_unit_inventory:
             open_unit_inventory.inventory.draw(screen, resources)
@@ -443,7 +451,7 @@ def game_loop():
             msg_text = msg_font.render(bottom_right_message, True, (255,255,255))
             screen.blit(msg_text, (WIDTH-msg_text.get_width()-20, HEIGHT-msg_text.get_height()-20))
             message_timer -= dt
-        elif message_timer<=0:
+        elif message_timer <= 0:
             bottom_right_message = ""
 
         pygame.display.flip()
@@ -485,6 +493,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 # ---------------- Git Commands ---------------- #

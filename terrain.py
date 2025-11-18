@@ -11,9 +11,11 @@ LACUNARITY = 2.0
 X_OFFSET = random.uniform(0, 10000)
 Y_OFFSET = random.uniform(0, 10000)
 
+
 def lerp_color(c1, c2, t):
     """Linearly interpolate between two colors."""
     return tuple(int(c1[i] + (c2[i] - c1[i]) * t) for i in range(3))
+
 
 def get_biome_color(value):
     if value < 0.35:
@@ -26,6 +28,7 @@ def get_biome_color(value):
         return lerp_color((70, 60, 55), (130, 120, 115), (value - 0.7) / 0.15)
     else:
         return lerp_color((180, 180, 180), (230, 230, 230), (value - 0.85) / 0.15)
+
 
 def generate_noise_map(rows, cols):
     """Generate a normalized 2D noise map."""
@@ -40,16 +43,18 @@ def generate_noise_map(rows, cols):
                                       lacunarity=LACUNARITY)
             noise_map[y][x] = noise_val
 
-
     min_val = np.min(noise_map)
     max_val = np.max(noise_map)
     return (noise_map - min_val) / (max_val - min_val + 1e-8)
 
-def draw_terrain(screen, noise_map, tile_size):
-    """Draw the terrain on the screen."""
+
+def draw_terrain(screen, noise_map, tile_size, camera=None):
+    """Draw the terrain on the screen, applying camera offset if provided."""
     rows, cols = noise_map.shape
     for y in range(rows):
         for x in range(cols):
             color = get_biome_color(noise_map[y][x])
             rect = pygame.Rect(x * tile_size, y * tile_size, tile_size, tile_size)
+            if camera:
+                rect = camera.apply(rect)
             pygame.draw.rect(screen, color, rect)

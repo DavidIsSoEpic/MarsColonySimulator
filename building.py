@@ -1,6 +1,7 @@
 import pygame
 import random
 
+# ---------------- Base Class ---------------- #
 class Base:
     def __init__(self, x, y, size=4, color=(200, 200, 200), border_color=(0,0,0)):
         """
@@ -48,7 +49,7 @@ class Base:
         # fallback
         return Base(cols // 2, rows // 2, size=size)
 
-    def draw(self, screen, tile_size):
+    def draw(self, screen, tile_size, camera=None):
         half = self.size // 2
         rect = pygame.Rect(
             (self.x - half) * tile_size,
@@ -56,6 +57,8 @@ class Base:
             self.size * tile_size,
             self.size * tile_size
         )
+        if camera:
+            rect = camera.apply(rect)
 
         # Fill (base color)
         pygame.draw.rect(screen, (180, 180, 180), rect)
@@ -63,7 +66,7 @@ class Base:
         # Black inner outline — same style as buildings
         pygame.draw.rect(screen, (0, 0, 0), rect, 2)
 
-    def is_clicked(self, mouse_pos, tile_size=10):
+    def is_clicked(self, mouse_pos, tile_size=10, camera=None):
         mx, my = mouse_pos
         half = self.size // 2
         rect = pygame.Rect(
@@ -72,4 +75,29 @@ class Base:
             self.size * tile_size,
             self.size * tile_size
         )
+        if camera:
+            rect = camera.apply(rect)
         return rect.collidepoint(mx, my)
+
+
+# ---------------- Building Class ---------------- #
+class Building:
+    def __init__(self, gx, gy, size=(4,4), b_type="Generic", color=(200,200,200), object_ref=None):
+        self.gx = gx
+        self.gy = gy
+        self.size = size
+        self.type = b_type
+        self.color = color
+        self.object = object_ref
+
+    def draw(self, screen, tile_size, camera=None):
+        rect = pygame.Rect(
+            self.gx * tile_size,
+            self.gy * tile_size,
+            self.size[0] * tile_size,
+            self.size[1] * tile_size
+        )
+        if camera:
+            rect = camera.apply(rect)
+        pygame.draw.rect(screen, self.color, rect)
+        pygame.draw.rect(screen, (0,0,0), rect, 2)  # outline

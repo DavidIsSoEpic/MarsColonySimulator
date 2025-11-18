@@ -100,7 +100,7 @@ class BuildingManager:
             "gy": gy,
             "size": size,
             "type": b_type,
-            "color": (180, 180, 180)  # match base color
+            "color": color
         }
         if obj:
             new_building["object"] = obj
@@ -127,7 +127,6 @@ class BuildingManager:
                     if mid not in self._occupied_tiles(ignore_airlocks=False):
                         possible_airlocks.append(mid)
 
-        # Pick only one airlock (single connecting pixel)
         if possible_airlocks:
             chosen = random.choice(possible_airlocks)
             self._add_airlock_tile(chosen[0], chosen[1])
@@ -146,24 +145,24 @@ class BuildingManager:
         self.buildings.append(airlock)
 
     # -------------------------
-    # Drawing (match home base perfectly)
+    # Drawing (with camera support)
     # -------------------------
-    def draw(self, screen, tile_size):
+    def draw(self, screen, tile_size, camera=None):
         for b in self.buildings:
             gx, gy = b["gx"], b["gy"]
             w, h = b["size"]
-            x = gx * tile_size
-            y = gy * tile_size
-            rect = pygame.Rect(x, y, w * tile_size, h * tile_size)
+            rect = pygame.Rect(gx * tile_size, gy * tile_size, w * tile_size, h * tile_size)
+            if camera:
+                rect = camera.apply(rect)
 
             if b.get("type") == "Airlock":
                 pygame.draw.rect(screen, (0, 0, 0), rect)
                 continue
 
-            # Fill (same color as main base)
-            pygame.draw.rect(screen, (180, 180, 180), rect)
+            # Fill (same color as main base or building)
+            pygame.draw.rect(screen, b.get("color", (180, 180, 180)), rect)
 
-            # Outer border directly on edge (no gray sliver)
+            # Outer border
             pygame.draw.rect(screen, (0, 0, 0), rect, 2)
 
     def debug_print(self):

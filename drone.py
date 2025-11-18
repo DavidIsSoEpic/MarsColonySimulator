@@ -81,16 +81,27 @@ class Drone:
             self.recharging_rover = None
 
     # -----------------------------
-    # Drawing
+    # Drawing (with camera support)
     # -----------------------------
-    def draw(self, screen):
-        pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
+    def draw(self, screen, camera=None):
+        draw_x = self.x
+        draw_y = self.y
+
+        if camera:
+            rect = pygame.Rect(int(self.x - self.radius), int(self.y - self.radius),
+                               self.radius*2, self.radius*2)
+            rect = camera.apply(rect)
+            draw_x = rect.x + self.radius
+            draw_y = rect.y + self.radius
+            pygame.draw.circle(screen, self.color, (draw_x, draw_y), self.radius)
+        else:
+            pygame.draw.circle(screen, self.color, (int(self.x), int(self.y)), self.radius)
 
         # Power bar
         bar_width = self.radius * 2
         bar_height = 4
-        bar_x = self.x - bar_width // 2
-        bar_y = self.y - self.radius - 8
+        bar_x = draw_x - bar_width // 2
+        bar_y = draw_y - self.radius - 8
 
         pygame.draw.rect(screen, (60, 60, 60), (bar_x, bar_y, bar_width, bar_height))
         fill_width = int(bar_width * (self.power / self.max_power))
@@ -98,8 +109,16 @@ class Drone:
         pygame.draw.rect(screen, color, (bar_x, bar_y, fill_width, bar_height))
 
     # -----------------------------
-    # Click detection
+    # Click detection (with camera support)
     # -----------------------------
-    def is_clicked(self, pos):
+    def is_clicked(self, pos, camera=None):
         mx, my = pos
-        return (self.x - mx) ** 2 + (self.y - my) ** 2 <= self.radius ** 2
+        draw_x = self.x
+        draw_y = self.y
+        if camera:
+            rect = pygame.Rect(self.x - self.radius, self.y - self.radius,
+                               self.radius*2, self.radius*2)
+            rect = camera.apply(rect)
+            draw_x = rect.x + self.radius
+            draw_y = rect.y + self.radius
+        return (draw_x - mx) ** 2 + (draw_y - my) ** 2 <= self.radius ** 2

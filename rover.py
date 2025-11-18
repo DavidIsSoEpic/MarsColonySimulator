@@ -76,19 +76,32 @@ class Rover:
                 self.power = self.max_power
 
     # -----------------------------
-    # Drawing
+    # Drawing (with camera support)
     # -----------------------------
-    def draw(self, screen):
+    def draw(self, screen, camera=None):
+        draw_x = self.x
+        draw_y = self.y
+
+        if camera:
+            draw_rect = pygame.Rect(int(self.x - self.size // 2),
+                                    int(self.y - self.size // 2),
+                                    self.size, self.size)
+            draw_rect = camera.apply(draw_rect)
+            draw_x = draw_rect.x
+            draw_y = draw_rect.y
+        else:
+            draw_rect = pygame.Rect(int(self.x - self.size // 2),
+                                    int(self.y - self.size // 2),
+                                    self.size, self.size)
+
         # Rover body
-        rect = pygame.Rect(int(self.x - self.size // 2), int(self.y - self.size // 2),
-                           self.size, self.size)
-        pygame.draw.rect(screen, self.color, rect)
+        pygame.draw.rect(screen, self.color, draw_rect)
 
         # Power bar background
         bar_width = self.size
         bar_height = 4
-        bar_x = self.x - bar_width // 2
-        bar_y = self.y - self.size // 2 - 8
+        bar_x = draw_x
+        bar_y = draw_y - 8
 
         pygame.draw.rect(screen, (60, 60, 60), (bar_x, bar_y, bar_width, bar_height))
 
@@ -98,9 +111,11 @@ class Rover:
         pygame.draw.rect(screen, color, (bar_x, bar_y, fill_width, bar_height))
 
     # -----------------------------
-    # Click detection
+    # Click detection (with camera support)
     # -----------------------------
-    def is_clicked(self, pos):
+    def is_clicked(self, pos, camera=None):
         rect = pygame.Rect(int(self.x - self.size // 2), int(self.y - self.size // 2),
                            self.size, self.size)
+        if camera:
+            rect = camera.apply(rect)
         return rect.collidepoint(pos)
