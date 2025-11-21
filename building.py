@@ -61,7 +61,7 @@ class Base:
             rect = camera.apply(rect)
 
         # Fill (base color)
-        pygame.draw.rect(screen, (180, 180, 180), rect)
+        pygame.draw.rect(screen, (200, 200, 200), rect)
 
         # Black inner outline — same style as buildings
         pygame.draw.rect(screen, (0, 0, 0), rect, 2)

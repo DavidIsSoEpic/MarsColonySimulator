@@ -43,7 +43,7 @@ class BuildingManager:
                 "gy": base.y - base.size // 2,
                 "size": (base.size, base.size),
                 "type": "Base",
-                "color": (180, 180, 180),
+                "color": (200, 200, 200),
                 "object": getattr(base, "object", None)
             }
             self.buildings.append(bdict)
@@ -91,7 +91,7 @@ class BuildingManager:
 
         return valid_gap
 
-    def add_building(self, gx, gy, size=(4,4), color=(180,180,180), b_type="Generic", obj=None):
+    def add_building(self, gx, gy, size=(4,4), color=(200,200,200), b_type="Generic", obj=None):
         if not self.can_place(gx, gy, size):
             return False
 
@@ -160,7 +160,7 @@ class BuildingManager:
                 continue
 
             # Fill (same color as main base or building)
-            pygame.draw.rect(screen, b.get("color", (180, 180, 180)), rect)
+            pygame.draw.rect(screen, b.get("color", (200, 200, 200)), rect)
 
             # Outer border
             pygame.draw.rect(screen, (0, 0, 0), rect, 2)

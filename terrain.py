@@ -49,12 +49,23 @@ def generate_noise_map(rows, cols):
 
 
 def draw_terrain(screen, noise_map, tile_size, camera=None):
-    """Draw the terrain on the screen, applying camera offset if provided."""
     rows, cols = noise_map.shape
-    for y in range(rows):
-        for x in range(cols):
+
+    if camera:
+        # visible tile range
+        start_col = max(int(camera.x // tile_size), 0)
+        end_col = min(int((camera.x + camera.width) // tile_size) + 1, cols)
+        start_row = max(int(camera.y // tile_size), 0)
+        end_row = min(int((camera.y + camera.height) // tile_size) + 1, rows)
+    else:
+        start_col, end_col = 0, cols
+        start_row, end_row = 0, rows
+
+    for y in range(start_row, end_row):
+        for x in range(start_col, end_col):
             color = get_biome_color(noise_map[y][x])
             rect = pygame.Rect(x * tile_size, y * tile_size, tile_size, tile_size)
             if camera:
                 rect = camera.apply(rect)
             pygame.draw.rect(screen, color, rect)
+
